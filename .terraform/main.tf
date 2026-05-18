@@ -37,5 +37,5 @@ resource "google_storage_bucket_object" "static_files" {
 # Вивід URL для bucket
 output "static_site_url" {
   description = "URL для доступу до статичного сайту"
-  value       = "http://${google_storage_bucket.static_site.name}.storage.googleapis.com"
+  value       = "http://${google_storage_bucket.static_site.name}.storage.googleapis.com/index.html"
 }
