@@ -29,9 +29,9 @@ resource "google_storage_bucket_object" "static_files" {
   # Для кожного файлу у директорії ./src створюється об'єкт у bucket
   for_each = fileset("${path.module}/../src", "**/*.*")
 
-  name   = each.value
+  name   = each.key
   bucket = google_storage_bucket.static_site.name
-  source = "${path.module}/../src/${each.value}"
+  source = "${path.module}/../src/${each.key}"
 }
 
 # Вивід URL для bucket
