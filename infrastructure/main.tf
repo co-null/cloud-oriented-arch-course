@@ -32,6 +32,16 @@ resource "google_storage_bucket_object" "static_files" {
   name   = each.key
   bucket = google_storage_bucket.static_site.name
   source = "${path.module}/../src/${each.key}"
+
+  content_type = (
+    can(regex("\\.css$", each.key)) ? "text/css" :
+    can(regex("\\.js$", each.key)) ? "application/javascript" :
+    can(regex("\\.html?$", each.key)) ? "text/html" :
+    can(regex("\\.png$", each.key)) ? "image/png" :
+    can(regex("\\.jpe?g$", each.key)) ? "image/jpeg" :
+    can(regex("\\.svg$", each.key)) ? "image/svg+xml" :
+    null
+  )
 }
 
 # Вивід URL для bucket
