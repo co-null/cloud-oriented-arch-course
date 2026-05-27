@@ -57,13 +57,6 @@ resource "google_storage_bucket_object" "function_zip" {
   source = "${path.module}/../src/bin/function-source.zip"
 }
 
-# IAM-політиа для Cloud Function
-resource "google_secret_manager_secret_iam_member" "function_access" {
-  secret_id = "projects/${var.project_id}/secrets/MAILGUN_API_KEY"
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_cloudfunctions_function.send_email.service_account_email}"
-}
-
 # Передаємо секрет в Cloud Function
 resource "google_cloudfunctions_function" "send_email" {
   name = "send_email"
@@ -83,6 +76,13 @@ resource "google_cloudfunctions_function" "send_email" {
   environment_variables = {
     MAILGUN_DOMAIN = var.mailgun_domain
   }
+}
+
+# IAM-політиа для Cloud Function
+resource "google_secret_manager_secret_iam_member" "function_access" {
+  secret_id = "projects/${var.project_id}/secrets/MAILGUN_API_KEY"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_cloudfunctions_function.send_email.service_account_email}"
 }
 
 # Вивід URL для bucket
