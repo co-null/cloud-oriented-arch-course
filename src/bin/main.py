@@ -20,14 +20,14 @@ def send_email(request):
 
     request_json = request.get_json(silent=True)
     if not request_json:
-        return {"status": "error", "message": "No JSON payload"}, 400
+        return ({"status": "error", "message": "No JSON payload"}, 400, headers)
 
     recipient = request_json.get("recipient")
     subject = request_json.get("subject", "Booking Confirmation")
     text = request_json.get("text", "Your booking is confirmed!")
 
     if not recipient:
-        return {"status": "error", "message": "Recipient email required"}, 400
+        return ({"status": "error", "message": "Recipient email required"}, 400, headers)
 
     response = requests.post(
         f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
@@ -41,9 +41,9 @@ def send_email(request):
     )
 
     if response.status_code == 200:
-        return {"status": "success", "message": "Email sent"}, 200
+        return ({"status": "success", "message": "Email sent"}, 200, headers)
     else:
-        return {
+        return ({
             "status": "error",
             "message": f"Failed to send email: {response.text}"
-        }, 500
+        }, 500, headers)
