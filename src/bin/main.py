@@ -8,6 +8,16 @@ SENDER_EMAIL = f"noreply@{MAILGUN_DOMAIN}"
 
 @functions_framework.http
 def send_email(request):
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+    }
+
+    if request.method == 'OPTIONS':
+        # Preflight request
+        return ('', 204, headers)
+
     request_json = request.get_json(silent=True)
     if not request_json:
         return {"status": "error", "message": "No JSON payload"}, 400
