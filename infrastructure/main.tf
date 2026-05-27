@@ -48,6 +48,8 @@ resource "google_storage_bucket_object" "static_files" {
 resource "google_storage_bucket" "function_bucket" {
   name     = "${var.project_id}-function-bucket"
   location = var.region
+
+  force_destroy = true # Дозволяє видаляти bucket разом із файлами
 }
 
 # Завантаження (копіювання/оновлення) функції (як архіву) з локальної директорії у bucket для функції
