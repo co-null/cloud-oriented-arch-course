@@ -66,7 +66,14 @@ resource "google_secret_manager_secret_iam_member" "function_access" {
 
 # Передаємо секрет в Cloud Function
 resource "google_cloudfunctions_function" "send_email" {
-  # ... інші параметри ...
+  name = "send_email"
+  runtime = "python310"
+  entry_point = "send_email"
+  source_archive_bucket = google_storage_bucket.function_bucket.name
+  source_archive_object = google_storage_bucket_object.function_zip.name
+  trigger_http = true
+  available_memory_mb = 256
+
   secret_environment_variables {
     key    = "MAILGUN_API_KEY"
     project_id = var.project_id
