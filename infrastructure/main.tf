@@ -78,7 +78,7 @@ resource "google_cloudfunctions_function" "send_email" {
   }
 }
 
-# IAM-політиа для Cloud Function
+# IAM-політики для Cloud Function
 resource "google_secret_manager_secret_iam_member" "function_access" {
   secret_id = "projects/${var.project_id}/secrets/MAILGUN_API_KEY"
   role      = "roles/secretmanager.secretAccessor"
