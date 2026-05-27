@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Наша статична сторінка</title>
+  <link rel="stylesheet" href="css/styles.css">
+
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <img src="img/hero.jpg" alt="Hero Image">
+    </div>
+    <h1>Вітаємо на нашій сторінці!</h1>
+    <nav>
+      <ul>
+        <li><a href="#">Головна</a></li>
+        <li><a href="#">Про нас</a></li>
+        <li><a href="#">Послуги</a></li>
+        <li><a href="#">Контакти</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main>
+    <section class="intro">
+      <h2>Тут буде текст</h2>
+      <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed euismod, urna eu tincidunt consectetur, nisi nisl aliquam nunc, vitae egestas enim mi nec quam.</p>
+    </section>
+    <section class="features">
+      <div class="feature">
+        <img src="img/feature1.png" alt="Feature 1">
+        <h3>Відправка email</h3>
+
+        <!-- Додаємо форму тут -->
+        <form class="email-form" id="emailForm">
+          <label for="recipient">Email отримувача:</label>
+          <input type="email" id="recipient" required placeholder="user@example.com">
+
+          <label for="subject">Тема:</label>
+          <input type="text" id="subject" value="Booking Confirmation" required>
+
+          <label for="text">Текст повідомлення:</label>
+          <textarea id="text" rows="3" required>Ваше бронювання підтверджено!</textarea>
+
+          <button type="submit">Надіслати email</button>
+          <div class="result" id="result"></div>
+        </form>
+      </div>
+      <div class="feature">
+        <img src="img/feature2.png" alt="Feature 2">
+        <h3>Перевага 2</h3>
+        <p>Vivamus magna justo, lacinia eget consectetur sed, convallis at tellus.</p>
+      </div>
+      <div class="feature">
+        <img src="img/feature3.png" alt="Feature 3">
+        <h3>Перевага 3</h3>
+        <p>Praesent sapien massa, convallis a pellentesque nec, egestas non nisi.</p>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <p>&copy; 2026 Вишукана сторінка. Всі права захищені.</p>
+  </footer>
+  <script>
+    // JS для відправки email через Cloud Function
+    const form = document.getElementById('emailForm');
+    const resultDiv = document.getElementById('result');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      resultDiv.textContent = 'Відправка...';
+
+      const recipient = document.getElementById('recipient').value;
+      const subject = document.getElementById('subject').value;
+      const text = document.getElementById('text').value;
+
+      // Вкажіть тут URL вашої Cloud Function:
+      const functionUrl = 'https://us-south1-cloud-oriented-arch-course.cloudfunctions.net/send_email';
+
+      try {
+        const response = await fetch(functionUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recipient, subject, text })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          resultDiv.textContent = 'Email успішно надіслано!';
+          form.reset();
+        } else {
+          resultDiv.textContent = 'Помилка: ' + (data.message || 'Невідома помилка');
+        }
+      } catch (err) {
+        resultDiv.textContent = 'Помилка мережі або CORS: ' + err.message;
+      }
+    });
+  </script>
+</body>
+</html>

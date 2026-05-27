@@ -88,3 +88,44 @@ footer {
   font-size: 0.95em;
   letter-spacing: 0.5px;
 }
+
+.email-form {
+  margin-top: 1.5em;
+  padding: 1em;
+  background: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  max-width: 350px;
+}
+.email-form label {
+  display: block;
+  margin-bottom: 0.5em;
+  font-weight: 500;
+}
+.email-form input, .email-form textarea {
+  width: 100%;
+  padding: 0.5em;
+  margin-bottom: 1em;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1em;
+  box-sizing: border-box;
+}
+.email-form button {
+  background: #007bff;
+  color: #fff;
+  border: none;
+  padding: 0.6em 1.5em;
+  border-radius: 4px;
+  font-size: 1em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.email-form button:hover {
+  background: #0056b3;
+}
+.email-form .result {
+  margin-top: 1em;
+  font-size: 0.95em;
+  min-height: 1.2em;
+}

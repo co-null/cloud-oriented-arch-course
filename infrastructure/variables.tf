@@ -12,3 +12,8 @@ variable "region" {
   description = "Регіон, де створювати ресурси"
   type        = string
 }
+
+variable "mailgun_domain" {
+  description = "Домен для відправки email"
+  type        = string
+}
