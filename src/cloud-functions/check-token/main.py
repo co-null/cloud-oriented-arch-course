@@ -15,6 +15,11 @@ def protected(request):
         'Access-Control-Allow-Headers': 'Content-Type',
     }
 
+    if request.method == 'OPTIONS':
+        # Preflight request
+        return ('', 204, headers)
+
+
     auth_header = request.headers.get('Authorization', '')
     if not auth_header.startswith('Bearer '):
         return (jsonify({'error': 'No token provided'}), 401, headers)
