@@ -116,6 +116,8 @@
   // Import the functions you need from the SDKs you need
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
   import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-analytics.js";
+  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
+
   // TODO: Add SDKs for Firebase products that you want to use
   // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -125,15 +127,14 @@
     apiKey: "AIzaSyCFZopyncDxJWSbz73o6kQ31yIHmlCCJOk",
     authDomain: "cloud-oriented-arch-course.firebaseapp.com",
     projectId: "cloud-oriented-arch-course",
-    storageBucket: "cloud-oriented-arch-course.firebasestorage.app",
+    storageBucket: "cloud-oriented-arch-course.firebaseapp.com",
     messagingSenderId: "831942559156",
     appId: "1:831942559156:web:0ae0ad7f06dacf1ed85ee1",
     measurementId: "G-6P49MG4MW2"
   };
 
-  // Initialize Firebase
   const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
+  const auth = getAuth(app);
 
   // Email/Password: Вхід або реєстрація
   document.getElementById('auth-signin-form').addEventListener('submit', async function(e) {
@@ -141,13 +142,11 @@
     const email = document.getElementById('auth-email').value;
     const password = document.getElementById('auth-password').value;
     try {
-      // Спроба входу
-      await firebase.auth().signInWithEmailAndPassword(email, password);
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
       if (error.code === 'auth/user-not-found') {
-        // Якщо користувача не знайдено — реєстрація
         try {
-          await firebase.auth().createUserWithEmailAndPassword(email, password);
+          await createUserWithEmailAndPassword(auth, email, password);
           alert('Реєстрація успішна! Тепер ви увійшли.');
         } catch (regError) {
           alert(regError.message);
@@ -160,9 +159,9 @@
 
   // Вхід через Google
   document.getElementById('google-signin-btn').addEventListener('click', async function() {
-    const provider = new firebase.auth.GoogleAuthProvider();
+    const provider = new GoogleAuthProvider();
     try {
-      await firebase.auth().signInWithPopup(provider);
+      await signInWithPopup(auth, provider);
     } catch (error) {
       alert(error.message);
     }
@@ -170,11 +169,11 @@
 
   // Вихід
   document.getElementById('signout-btn').addEventListener('click', async function() {
-    await firebase.auth().signOut();
+    await signOut(auth);
   });
 
   // Відображення статусу та кнопки виходу
-  firebase.auth().onAuthStateChanged(async (user) => {
+  onAuthStateChanged(auth, async (user) => {
     const statusDiv = document.getElementById('auth-status');
     const signoutBtn = document.getElementById('signout-btn');
     const tokenCheckDiv = document.getElementById('token-check-result');
