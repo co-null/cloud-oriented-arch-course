@@ -54,7 +54,7 @@ resource "google_storage_bucket" "function_bucket" {
 # Email функція
 # Завантаження (копіювання/оновлення) функції (як архіву) для email з локальної директорії у bucket для функції
 resource "google_storage_bucket_object" "email_function_zip" {
-  name   = "function-source.zip"
+  name   = "send-email.zip"
   bucket = google_storage_bucket.function_bucket.name
   source = "${path.module}/../src/cloud-functions/send-email/send-email.zip"
 }
@@ -98,7 +98,7 @@ resource "google_cloudfunctions_function_iam_member" "invoker" {
 # Check-token функція
 # Завантаження (копіювання/оновлення) функції (як архіву) для Check-token з локальної директорії у bucket для функції
 resource "google_storage_bucket_object" "check_token_function_zip" {
-  name   = "function-source.zip"
+  name   = "check-token.zip"
   bucket = google_storage_bucket.function_bucket.name
   source = "${path.module}/../src/cloud-functions/check-token/check-token.zip"
 }
