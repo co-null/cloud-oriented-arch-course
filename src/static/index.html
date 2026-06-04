@@ -179,8 +179,7 @@
   firebase.auth().onAuthStateChanged(async (user) => {
     const statusDiv = document.getElementById('auth-status');
     const signoutBtn = document.getElementById('signout-btn');
-    const tokenCheckDiv = document.getElementById('token
--check-result');
+    const tokenCheckDiv = document.getElementById('token-check-result');
     if (user) {
       statusDiv.innerHTML = `Ви увійшли як <b>${user.email || 'Google користувач'}</b>`;
       signoutBtn.style.display = 'block';
@@ -188,7 +187,7 @@
       // Перевірка токена через вашу Cloud Function
       const idToken = await user.getIdToken();
       try {
-        const response = await fetch('https://YOUR_CLOUD_FUNCTION_URL/protected', {
+        const response = await fetch('https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/protected', {
           method: 'GET',
           headers: { 'Authorization': 'Bearer ' + idToken }
         });
