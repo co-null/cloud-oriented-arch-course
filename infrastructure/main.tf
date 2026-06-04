@@ -56,7 +56,7 @@ resource "google_storage_bucket" "function_bucket" {
 resource "google_storage_bucket_object" "email_function_zip" {
   name   = "function-source.zip"
   bucket = google_storage_bucket.function_bucket.name
-  source = "${path.module}/../src/cloud-functions/send-email/function-source.zip"
+  source = "${path.module}/../src/cloud-functions/send-email/send-email.zip"
 }
 
 # Передаємо секрет в Cloud Function
@@ -100,7 +100,7 @@ resource "google_cloudfunctions_function_iam_member" "invoker" {
 resource "google_storage_bucket_object" "check_token_function_zip" {
   name   = "function-source.zip"
   bucket = google_storage_bucket.function_bucket.name
-  source = "${path.module}/../src/cloud-functions/check-token/function-source.zip"
+  source = "${path.module}/../src/cloud-functions/check-token/check-token.zip"
 }
 
 resource "google_cloudfunctions_function" "protected_api" {
