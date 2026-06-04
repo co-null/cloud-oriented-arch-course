@@ -111,7 +111,7 @@ resource "google_cloudfunctions_function" "protected_api" {
   trigger_http = true
   available_memory_mb = 128
 
-  source_archive_bucket = google_storage_bucket.function_source.name
+  source_archive_bucket = google_storage_bucket.function_bucket.name
   source_archive_object = google_storage_bucket_object.check_token_function_zip.name
 
   environment_variables = {
