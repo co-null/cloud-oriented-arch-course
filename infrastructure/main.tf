@@ -44,18 +44,6 @@ resource "google_storage_bucket_object" "static_files" {
   )
 }
 
-resource "google_storage_bucket_cors_configuration" "static_site_cors" {
-  bucket = google_storage_bucket.static_site.name
-
-  cors {
-    origin          = ["*"]
- # або ваш домен
-    method          = ["GET", "POST", "OPTIONS"]
-    response_header = ["Content-Type", "Authorization"]
-    max_age_seconds = 3600
-  }
-}
-
 # Створення Google Cloud Storage bucket для функцій (ім'я буде відповідати [ІД вашого проєкту]-function-bucket)
 resource "google_storage_bucket" "function_bucket" {
   name     = "${var.project_id}-function-bucket"
