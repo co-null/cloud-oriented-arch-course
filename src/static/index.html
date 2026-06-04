@@ -23,6 +23,20 @@
     </nav>
   </header>
   <main>
+    <!-- Блок аутентифікації -->
+    <section class="auth-block" style="max-width:400px;margin:2em auto;padding:1em;border:1px solid #ccc;border-radius:8px;">
+      <h3>Аутентифікація</h3>
+      <div id="auth-status">Ви не авторизовані.</div>
+      <form id="auth-signin-form" style="margin-top:1em;">
+        <input type="email" id="auth-email" placeholder="Email" required style="width:100%;margin-bottom:0.5em;">
+        <input type="password" id="auth-password" placeholder="Пароль" required style="width:100%;margin-bottom:0.5em;">
+        <button type="submit" style="width:100%;">Увійти / Зареєструватися</button>
+      </form>
+      <button id="google-signin-btn" style="width:100%;margin-top:0.5em;">Увійти через Google</button>
+      <button id="signout-btn" style="width:100%;margin-top:0.5em;display:none;">Вийти</button>
+      <div id="token-check-result" style="margin-top:1em;"></div>
+    </section>
+
     <section class="intro">
       <h2>Тут буде текст</h2>
       <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed euismod, urna eu tincidunt consectetur, nisi nisl aliquam nunc, vitae egestas enim mi nec quam.</p>
@@ -123,77 +137,77 @@
 </script>
 
 <script>
-  // Функції аутентифікації
-  async function signUp(email, password) {
+  // Email/Password: Вхід або реєстрація
+  document.getElementById('auth-signin-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const email = document.getElementById('auth-email').value;
+    const password = document.getElementById('auth-password').value;
     try {
-      const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
-      await userCredential.user.sendEmailVerification();
-      alert('Реєстрація успішна! Перевірте email для підтвердження.');
+      // Спроба входу
+      await firebase.auth().signInWithEmailAndPassword(email, password);
     } catch (error) {
-      alert(error.message);
-    }
-  }
-
-  async function signIn(email, password) {
-    try {
-      const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
-      if (!userCredential.user.emailVerified) {
-        alert('Підтвердіть email перед входом.');
-        await firebase.auth().signOut();
+      if (error.code === 'auth/user-not-found') {
+        // Якщо користувача не знайдено — реєстрація
+        try {
+          await firebase.auth().createUserWithEmailAndPassword(email, password);
+          alert('Реєстрація успішна! Тепер ви увійшли.');
+        } catch (regError) {
+          alert(regError.message);
+        }
       } else {
-        alert('Вхід успішний!');
+        alert(error.message);
       }
+    }
+  });
+
+  // Вхід через Google
+  document.getElementById('google-signin-btn').addEventListener('click', async function() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    try {
+      await firebase.auth().signInWithPopup(provider);
     } catch (error) {
       alert(error.message);
     }
-  }
+  });
 
-  async function signOut() {
+  // Вихід
+  document.getElementById('signout-btn').addEventListener('click', async function() {
     await firebase.auth().signOut();
-    alert('Вихід виконано.');
-  }
+  });
 
-  // Відображення статусу користувача
-  firebase.auth().onAuthStateChanged((user) => {
+  // Відображення статусу та кнопки виходу
+  firebase.auth().onAuthStateChanged(async (user) => {
     const statusDiv = document.getElementById('auth-status');
-    if (user && user.emailVerified) {
-      statusDiv.innerHTML = `Ви увійшли як <b>${user.email}</b> <button onclick="signOut()">Вийти</button>`;
-    } else {
-      statusDiv.innerHTML = 'Ви не авторизовані.';
-    }
-  });
+    const signoutBtn = document.getElementById('signout-btn');
+    const tokenCheckDiv = document.getElementById('token
+-check-result');
+    if (user) {
+      statusDiv.innerHTML = `Ви увійшли як <b>${user.email || 'Google користувач'}</b>`;
+      signoutBtn.style.display = 'block';
 
-  // Обробка форм
-  document.getElementById('auth-signin-form').addEventListener('submit', function(e) {
-    e.preventDefault();
-    signIn(
-      document.getElementById('auth-email').value,
-      document.getElementById('auth-password').value
-    );
-  });
-  document.getElementById('auth-signup-form').addEventListener('submit', function(e) {
-    e.preventDefault();
-    signUp(
-      document.getElementById('auth-email').value,
-      document.getElementById('auth-password').value
-    );
+      // Перевірка токена через вашу Cloud Function
+      const idToken = await user.getIdToken();
+      try {
+        const response = await fetch('https://YOUR_CLOUD_FUNCTION_URL/protected', {
+          method: 'GET',
+          headers: { 'Authorization': 'Bearer ' + idToken }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          tokenCheckDiv.textContent = 'Доступ до захищеного ресурсу дозволено!';
+        } else {
+          tokenCheckDiv.textContent = 'Помилка перевірки токена: ' + (data.error || 'Невідома помилка');
+        }
+      } catch (err) {
+        tokenCheckDiv.textContent = 'Помилка мережі або CORS: ' + err.message;
+      }
+    } else {
+      statusDiv.textContent = 'Ви не авторизовані.';
+      signoutBtn.style.display = 'none';
+      tokenCheckDiv.textContent = '';
+    }
   });
 </script>
-
-<!-- Блок аутентифікації -->
-<section class="auth-block" style="max-width:400px;margin:2em auto;padding:1em;border:1px solid #ccc;border-radius:8px;">
-  <h3>Аутентифікація</h3>
-  <div id="auth-status">Ви не авторизовані.</div>
-  <form id="auth-signin-form" style="margin-top:1em;">
-    <input type="email" id="auth-email" placeholder="Email" required style="width:100%;margin-bottom:0.5em;">
-    <input type="password" id="auth-password" placeholder="Пароль" required style="width:100%;margin-bottom:0.5em;">
-    
-<button type="submit" style="width:100%;">Увійти</button>
-  </form>
-  <form id="auth-signup-form" style="margin-top:0.5em;">
-    <button type="submit" style="width:100%;">Зареєструватися</button>
-  </form>
-</section>
 
 </body>
 </html>
