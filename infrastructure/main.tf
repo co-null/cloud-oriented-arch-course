@@ -44,18 +44,31 @@ resource "google_storage_bucket_object" "static_files" {
   )
 }
 
-# Створення Google Cloud Storage bucket для функції (ім'я буде відповідати [ІД вашого проєкту]-function-bucket)
+resource "google_storage_bucket_cors_configuration" "static_site_cors" {
+  bucket = google_storage_bucket.static_site.name
+
+  cors {
+    origin          = ["*"]
+ # або ваш домен
+    method          = ["GET", "POST", "OPTIONS"]
+    response_header = ["Content-Type", "Authorization"]
+    max_age_seconds = 3600
+  }
+}
+
+# Створення Google Cloud Storage bucket для функцій (ім'я буде відповідати [ІД вашого проєкту]-function-bucket)
 resource "google_storage_bucket" "function_bucket" {
   name     = "${var.project_id}-function-bucket"
   location = var.region
   force_destroy = true 
 }
 
-# Завантаження (копіювання/оновлення) функції (як архіву) з локальної директорії у bucket для функції
-resource "google_storage_bucket_object" "function_zip" {
+# Email функція
+# Завантаження (копіювання/оновлення) функції (як архіву) для email з локальної директорії у bucket для функції
+resource "google_storage_bucket_object" "email_function_zip" {
   name   = "function-source.zip"
   bucket = google_storage_bucket.function_bucket.name
-  source = "${path.module}/../src/bin/function-source.zip"
+  source = "${path.module}/../src/cloud-functions/send-email/function-source.zip"
 }
 
 # Передаємо секрет в Cloud Function
@@ -64,7 +77,7 @@ resource "google_cloudfunctions_function" "send_email" {
   runtime = "python310"
   entry_point = "send_email"
   source_archive_bucket = google_storage_bucket.function_bucket.name
-  source_archive_object = google_storage_bucket_object.function_zip.name
+  source_archive_object = google_storage_bucket_object.email_function_zip.name
   trigger_http = true
   available_memory_mb = 256
 
@@ -93,6 +106,34 @@ resource "google_cloudfunctions_function_iam_member" "invoker" {
   role           = "roles/cloudfunctions.invoker"
   member         = "allUsers"
 }
+
+# Check-token функція
+# Завантаження (копіювання/оновлення) функції (як архіву) для Check-token з локальної директорії у bucket для функції
+resource "google_storage_bucket_object" "check_token_function_zip" {
+  name   = "function-source.zip"
+  bucket = google_storage_bucket.function_bucket.name
+  source = "${path.module}/../src/cloud-functions/check-token/function-source.zip"
+}
+
+resource "google_cloudfunctions_function" "protected_api" {
+  name        = "protected-api"
+  description = "Protected endpoint with Firebase token check"
+  runtime     = "python310"
+  entry_point = "app" # Flask app
+  trigger_http = true
+  available_memory_mb = 128
+
+  source_archive_bucket = google_storage_bucket.function_source.name
+  source_archive_object = google_storage_bucket_object.check_token_function_zip.name
+
+  environment_variables = {
+    GOOGLE_APPLICATION_CREDENTIALS = "/workspace/service-account.json"
+  }
+
+  ingress_settings = "ALLOW_ALL"
+  https_trigger_security_level = "SECURE_ALWAYS"
+}
+
 
 # Вивід URL для bucket
 output "static_site_url" {
