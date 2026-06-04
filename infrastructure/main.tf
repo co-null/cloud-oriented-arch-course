@@ -107,7 +107,7 @@ resource "google_cloudfunctions_function" "protected_api" {
   name        = "protected-api"
   description = "Protected endpoint with Firebase token check"
   runtime     = "python310"
-  entry_point = "app" # Flask app
+  entry_point = "protected"
   trigger_http = true
   available_memory_mb = 128
 
