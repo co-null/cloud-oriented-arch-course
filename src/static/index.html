@@ -30,8 +30,9 @@
       <form id="auth-signin-form" style="margin-top:1em;">
         <input type="email" id="auth-email" placeholder="Email" required style="width:100%;margin-bottom:0.5em;">
         <input type="password" id="auth-password" placeholder="Пароль" required style="width:100%;margin-bottom:0.5em;">
-        <button type="submit" style="width:100%;">Увійти / Зареєструватися</button>
+        <button type="submit" style="width:100%;">Увійти</button>
       </form>
+      <button id="email-signin-btn" style="width:100%;margin-top:0.5em;">Новий користувач</button>
       <button id="google-signin-btn" style="width:100%;margin-top:0.5em;">Увійти через Google</button>
       <button id="signout-btn" style="width:100%;margin-top:0.5em;display:none;">Вийти</button>
       <div id="token-check-result" style="margin-top:1em;"></div>
@@ -153,6 +154,18 @@
       } else {
         alert(error.message);
       }
+    }
+  });
+
+  document.getElementById('email-signin-btn').addEventListener('click', async function(e) {
+    e.preventDefault();
+    const email = document.getElementById('auth-email').value;
+    const password = document.getElementById('auth-password').value;
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+      alert('Реєстрація успішна! Тепер ви увійшли.');
+    } catch (regError) {
+      alert(regError.message);
     }
   });
 
