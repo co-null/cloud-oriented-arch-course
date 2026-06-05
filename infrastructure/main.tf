@@ -81,13 +81,13 @@ resource "google_cloudfunctions_function" "send_email" {
 }
 
 # IAM-політики для Cloud Function
-resource "google_secret_manager_secret_iam_member" "function_access" {
+resource "google_secret_manager_secret_iam_member" "send_email_function_access" {
   secret_id = "projects/${var.project_id}/secrets/MAILGUN_API_KEY"
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_cloudfunctions_function.send_email.service_account_email}"
 }
 
-resource "google_cloudfunctions_function_iam_member" "invoker" {
+resource "google_cloudfunctions_function_iam_member" "send_email_invoker" {
   project        = var.project_id
   region         = var.region
   cloud_function = google_cloudfunctions_function.send_email.name
@@ -120,6 +120,14 @@ resource "google_cloudfunctions_function" "protected_api" {
 
   ingress_settings = "ALLOW_ALL"
   https_trigger_security_level = "SECURE_ALWAYS"
+}
+
+resource "google_cloudfunctions_function_iam_member" "protected_api_invoker" {
+  project        = var.project_id
+  region         = var.region
+  cloud_function = google_cloudfunctions_function.protected_api.name
+  role           = "roles/cloudfunctions.invoker"
+  member         = "allUsers"
 }
 
 
