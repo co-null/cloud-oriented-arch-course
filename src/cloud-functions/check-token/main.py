@@ -6,7 +6,7 @@ import logging
 
 cred = credentials.ApplicationDefault()
 firebase_admin.initialize_app(cred, {
-    'projectId': os.environ.get('GCP_PROJECT') or os.environ.get('GOOGLE_CLOUD_PROJECT') or 'cloud-oriented-arch-course'
+    'projectId': 'cloud-oriented-arch-course'
 })
 
 @functions_framework.http

@@ -114,10 +114,6 @@ resource "google_cloudfunctions_function" "protected_api" {
   source_archive_bucket = google_storage_bucket.function_bucket.name
   source_archive_object = google_storage_bucket_object.check_token_function_zip.name
 
-  environment_variables = {
-    GOOGLE_APPLICATION_CREDENTIALS = "/workspace/service-account.json"
-  }
-
   ingress_settings = "ALLOW_ALL"
   https_trigger_security_level = "SECURE_ALWAYS"
 }
