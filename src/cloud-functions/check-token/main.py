@@ -1,8 +1,7 @@
 import firebase_admin
 from firebase_admin import credentials, auth
 import functions_framework
-from flask import jsonify
-import requests
+from flask import jsonify, request
 
 cred = credentials.ApplicationDefault()
 firebase_admin.initialize_app(cred)
@@ -18,7 +17,6 @@ def protected(request):
     if request.method == 'OPTIONS':
         # Preflight request
         return ('', 204, headers)
-
 
     auth_header = request.headers.get('Authorization', '')
     if not auth_header.startswith('Bearer '):
