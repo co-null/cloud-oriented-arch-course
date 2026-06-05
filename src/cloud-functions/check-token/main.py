@@ -8,7 +8,6 @@ cred = credentials.ApplicationDefault()
 firebase_admin.initialize_app(cred, {
     'projectId': os.environ.get('GCP_PROJECT') or os.environ.get('GOOGLE_CLOUD_PROJECT') or 'cloud-oriented-arch-course'
 })
-firebase_admin.initialize_app(cred)
 
 @functions_framework.http
 def protected(request):
