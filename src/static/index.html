@@ -183,7 +183,7 @@
       // Перевірка токена через вашу Cloud Function
       const idToken = await user.getIdToken();
       try {
-        const response = await fetch('https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/protected', {
+        const response = await fetch('https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/protected-api', {
           method: 'GET',
           headers: { 'Authorization': 'Bearer ' + idToken }
         });
