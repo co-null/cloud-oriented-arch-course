@@ -67,7 +67,7 @@ resource "google_cloudfunctions_function" "send_email" {
   source_archive_bucket = google_storage_bucket.function_bucket.name
   source_archive_object = google_storage_bucket_object.email_function_zip.name
   trigger_http = true
-  available_memory_mb = 256
+  available_memory_mb = 128
 
   secret_environment_variables {
     key    = "MAILGUN_API_KEY"

@@ -1,5 +1,4 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask import Flask, request, jsonify, make_response
 import firebase_admin
 from firebase_admin import credentials, firestore
 from datetime import datetime, timezone
@@ -11,7 +10,6 @@ firebase_admin.initialize_app(cred)
 db = firestore.client()
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
 
 # Валідація даних квартири
 def validate_apartment(data):
@@ -39,29 +37,28 @@ def verify_token_via_cloud_function():
         return None, jsonify({"detail": "Некоректний токен"}), 401
     return response.json(), None, None
 
+def make_cors_response(response, status=200):
+    resp = make_response(response, status)
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    resp.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+    resp.headers['Access-Control-Allow-Headers'] = 'Authorization,Content-Type'
+    resp.headers['Access-Control-Max-Age'] = '3600'
+    return resp
+
 @app.route('/apartments', methods=['POST', 'GET', 'OPTIONS'])
 def apartments():
     if request.method == 'OPTIONS':
-        # Preflight CORS request
-        response = app.make_default_options_response()
-        headers = response.headers
-
-        headers['Access-Control-Allow-Origin'] = '*'
-        headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
-        headers['Access-Control-Allow-Headers'] = 'Authorization,Content-Type'
-        headers['Access-Control-Max-Age'] = '3600'
-        response.headers = headers
-        return response
+        return make_cors_response('', 204)
     
-    user, error_resp, error_code = verify_token_via_cloud_function()
+    user, error_resp = verify_token_via_cloud_function()
     if not user:
-        return error_resp, error_code
+        return error_resp
 
     if request.method == 'POST':
         data = request.get_json()
         errors = validate_apartment(data)
         if errors:
-            return jsonify({"detail": " ".join(errors)}), 400
+            return make_cors_response(jsonify({"detail": " ".join(errors)}), 400)
         db.collection('apartments').add(data)
         # Логування створення
         log_entry = {
@@ -72,12 +69,12 @@ def apartments():
             "details": data
         }
         db.collection("logs").add(log_entry)
-        return jsonify({"status": "created"}), 201
+        return make_cors_response(jsonify({"status": "created"}), 201)
 
     elif request.method == 'GET':
         apartments = db.collection('apartments').stream()
         result = [doc.to_dict() for doc in apartments]
-        return jsonify(result), 200
+        return make_cors_response(jsonify(result), 200)
 
 # entry_point для Cloud Functions
 def main(request):
