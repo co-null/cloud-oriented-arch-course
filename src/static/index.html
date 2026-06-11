@@ -64,8 +64,16 @@
       </div>
       <div class="feature">
         <img src="img/feature2.png" alt="Feature 2">
-        <h3>Перевага 2</h3>
-        <p>Vivamus magna justo, lacinia eget consectetur sed, convallis at tellus.</p>
+        <h3>Додати квартиру</h3>
+        <form id="apartmentForm" style="margin-top:1em;">
+          <input type="text" id="address" placeholder="Адреса" required style="width:100%;margin-bottom:0.5em;">
+          <input type="number" id="rooms" placeholder="Кількість кімнат" required style="width:100%;margin-bottom:0.5em;">
+          <input type="number" id="price" placeholder="Ціна" required style="width:100%;margin-bottom:0.5em;">
+          <textarea id="description" placeholder="Опис" style="width:100%;margin-bottom:0.5em;"></textarea>
+          <button type="submit" style="width:100%;">Додати квартиру</button>
+        </form>
+        <button id="loadBtn" style="width:100%;margin-top:0.5em;">Завантажити квартири</button>
+        <div id="apartmentsList" style="margin-top:1em;"></div>
       </div>
       <div class="feature">
         <img src="img/feature3.png" alt="Feature 3">
@@ -135,6 +143,7 @@
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
+  let currentUser = null;
 
   // Email/Password: Вхід або реєстрація
   document.getElementById('auth-signin-form').addEventListener('submit', async function(e) {
@@ -189,6 +198,7 @@
     const statusDiv = document.getElementById('auth-status');
     const signoutBtn = document.getElementById('signout-btn');
     const tokenCheckDiv = document.getElementById('token-check-result');
+    currentUser = user;
     if (user) {
       statusDiv.innerHTML = `Ви увійшли як <b>${user.email || 'Google користувач'}</b>`;
       signoutBtn.style.display = 'block';
@@ -215,6 +225,66 @@
       tokenCheckDiv.textContent = '';
     }
   });
+
+async function getIdToken() {
+  if (currentUser) {
+    return await currentUser.getIdToken();
+  }
+  return null;
+}
+
+// Форма для додання та відображення списку квартир через Cloud Function
+const APARTMENTS_URL = "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/apartments"; 
+
+document.getElementById('apartmentForm').onsubmit = async function(e) {
+  e.preventDefault();
+
+  const idToken = await getIdToken();
+  if (!idToken) {
+    alert('Ви не авторизовані!');
+    return;
+  }
+
+  const data = {
+    address: document.getElementById('address').value,
+    rooms: parseInt(document.getElementById('rooms').value),
+    price: parseInt(document.getElementById('price').value),
+    description: document.getElementById('description').value
+  };
+  await fetch(APARTMENTS_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + idToken
+    },
+    body: JSON.stringify(data)
+  });
+  alert('Квартиру додано!');
+};
+
+document.getElementById('loadBtn').onclick = async function() {
+  const idToken = await getIdToken();
+  if (!idToken) {
+    alert('Ви не авторизовані!');
+    return;
+  }
+  
+  const res = await fetch(APARTMENTS_URL, {
+    headers: {
+      'Authorization': 'Bearer ' + idToken
+    }
+  });
+
+  if (res.ok) {
+    const apartments = await res.json();
+    const list = apartments.map(a => `<div>${a.address}, ${a.rooms} кімн., ${a.price} грн — ${a.description}</div>`).join('');
+    document.getElementById('apartmentsList').innerHTML = list;
+  } else {
+    const error = await res.json();
+    alert('Помилка: ' + (error.detail || 'Невідома помилка'));
+  }
+};
+
 </script>
 
 </body>

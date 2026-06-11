@@ -129,3 +129,46 @@ footer {
   font-size: 0.95em;
   min-height: 1.2em;
 }
+
+.feature form#apartmentForm {
+  background: #f9f9f9;
+  padding: 1em;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  margin-bottom: 0.5em;
+}
+
+.feature form#apartmentForm input,
+.feature form#apartmentForm textarea {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.5em;
+  font-size: 1em;
+  margin-bottom: 0.5em;
+  box-sizing: border-box;
+}
+
+.feature form#apartmentForm button,
+.feature > button#loadBtn {
+  background: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.6em 1em;
+  font-size: 1em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.feature form#apartmentForm button:hover,
+.feature > button#loadBtn:hover {
+  background: #0056b3;
+}
+
+#apartmentsList > div {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  padding: 0.5em;
+  margin-bottom: 0.5em;
+}
