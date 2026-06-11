@@ -75,7 +75,3 @@ def apartments():
         apartments = db.collection('apartments').stream()
         result = [doc.to_dict() for doc in apartments]
         return make_cors_response(jsonify(result), 200)
-
-# entry_point для Cloud Functions
-def main(request):
-    return app(request)
