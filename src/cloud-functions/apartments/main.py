@@ -45,7 +45,7 @@ def make_cors_response(response, status=200):
     resp.headers['Access-Control-Max-Age'] = '3600'
     return resp
 
-@app.route('/apartments', methods=['POST', 'GET', 'OPTIONS'])
+@app.route('/', methods=['POST', 'GET', 'OPTIONS'])
 def apartments():
     if request.method == 'OPTIONS':
         return make_cors_response('', 204)
