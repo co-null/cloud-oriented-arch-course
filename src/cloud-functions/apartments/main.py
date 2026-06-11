@@ -24,19 +24,6 @@ def validate_apartment(data):
         errors.append("Опис має бути рядком до 500 символів.")
     return errors
 
-# Перевірка токена через Cloud Function
-def verify_token_via_cloud_function():
-    auth = request.headers.get("Authorization")
-    if not auth:
-        return None, jsonify({"detail": "Відсутній токен"}), 401
-    response = requests.post(
-        "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/protected-api",
-        headers={"Authorization": auth}
-    )
-    if response.status_code != 200:
-        return None, jsonify({"detail": "Некоректний токен"}), 401
-    return response.json(), None, None
-
 def make_cors_response(response, status=200):
     resp = make_response(response, status)
     resp.headers['Access-Control-Allow-Origin'] = '*'
@@ -44,6 +31,19 @@ def make_cors_response(response, status=200):
     resp.headers['Access-Control-Allow-Headers'] = 'Authorization,Content-Type'
     resp.headers['Access-Control-Max-Age'] = '3600'
     return resp
+
+# Перевірка токена через Cloud Function
+def verify_token_via_cloud_function():
+    auth = request.headers.get("Authorization")
+    if not auth:
+        return None, make_cors_response(jsonify({"detail": "Відсутній токен"}), 401)
+    response = requests.post(
+        "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/protected-api",
+        headers={"Authorization": auth}
+    )
+    if response.status_code != 200:
+        return None, make_cors_response(jsonify({"detail": "Некоректний токен"}), 401)
+    return response.json(), None
 
 @app.route('/', methods=['POST', 'GET', 'OPTIONS'])
 def apartments():
