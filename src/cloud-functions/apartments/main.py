@@ -39,7 +39,7 @@ def verify_token_via_cloud_function():
         return None, jsonify({"detail": "Некоректний токен"}), 401
     return response.json(), None, None
 
-@app.route('/apartments', methods=['POST', 'GET'])
+@app.route('/apartments', methods=['POST', 'GET', 'OPTIONS'])
 def apartments():
     if request.method == 'OPTIONS':
         # Preflight CORS request
