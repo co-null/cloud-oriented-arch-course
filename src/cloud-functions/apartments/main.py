@@ -41,6 +41,17 @@ def verify_token_via_cloud_function():
 
 @app.route('/apartments', methods=['POST', 'GET'])
 def apartments():
+    if request.method == 'OPTIONS':
+        # Preflight CORS request
+        response = app.make_default_options_response()
+        headers = response.headers
+
+        headers['Access-Control-Allow-Origin'] = '*'
+        headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+        headers['Access-Control-Allow-Headers'] = 'Authorization,Content-Type'
+        headers['Access-Control-Max-Age'] = '3600'
+        return response
+    
     user, error_resp, error_code = verify_token_via_cloud_function()
     if not user:
         return error_resp, error_code
