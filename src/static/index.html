@@ -236,7 +236,7 @@ async function getIdToken() {
 // Форма для додання та відображення списку квартир через Cloud Function
 const APARTMENTS_URL = "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/apartments"; 
 
-document.getElementById('apartmentForm').onsubmit = async function(e) {
+document.getElementById('apartmentForm').addEventListener('submit', async function(e) {
   e.preventDefault();
 
   const idToken = await getIdToken();
@@ -260,9 +260,9 @@ document.getElementById('apartmentForm').onsubmit = async function(e) {
     body: JSON.stringify(data)
   });
   alert('Квартиру додано!');
-};
+});
 
-document.getElementById('loadBtn').onclick = async function() {
+document.getElementById('loadBtn').addEventListener('click', async function(e) {
   const idToken = await getIdToken();
   if (!idToken) {
     alert('Ви не авторизовані!');
@@ -283,7 +283,7 @@ document.getElementById('loadBtn').onclick = async function() {
     const error = await res.json();
     alert('Помилка: ' + (error.detail || 'Невідома помилка'));
   }
-};
+});
 
 </script>
 
