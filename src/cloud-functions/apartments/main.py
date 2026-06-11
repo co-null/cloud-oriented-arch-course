@@ -50,6 +50,7 @@ def apartments():
         headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
         headers['Access-Control-Allow-Headers'] = 'Authorization,Content-Type'
         headers['Access-Control-Max-Age'] = '3600'
+        response.headers = headers
         return response
     
     user, error_resp, error_code = verify_token_via_cloud_function()
