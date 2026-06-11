@@ -75,3 +75,8 @@ def apartments():
         apartments = db.collection('apartments').stream()
         result = [doc.to_dict() for doc in apartments]
         return make_cors_response(jsonify(result), 200)
+    
+def main(request):
+    # request — це Werkzeug Request
+    with app.request_context(request.environ):
+        return app.full_dispatch_request()

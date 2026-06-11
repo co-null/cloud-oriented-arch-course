@@ -138,7 +138,7 @@ resource "google_cloudfunctions_function" "apartments_api" {
   name        = "apartments"
   description = "Endpoint for apartments"
   runtime     = "python310"
-  entry_point = "app"
+  entry_point = "main"
   trigger_http = true
   available_memory_mb = 128
 
