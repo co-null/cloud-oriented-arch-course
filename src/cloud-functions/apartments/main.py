@@ -59,7 +59,7 @@ def apartments():
         errors = validate_apartment(data)
         if errors:
             return make_cors_response(jsonify({"detail": " ".join(errors)}), 400)
-        doc_ref, _ = db.collection('apartments').add(data)
+        doc_ref = db.collection('apartments').add(data)
         logging.info(f"doc_ref: {doc_ref}")
         # Логування створення
         log_entry = {
