@@ -59,21 +59,21 @@ def apartments():
         errors = validate_apartment(data)
         if errors:
             return make_cors_response(jsonify({"detail": " ".join(errors)}), 400)
-        db.collection('apartments').add(data)
+        doc_ref, _ = db.collection('apartments').add(data)
         # Логування створення
         log_entry = {
-            "user_id": user.get("sub"),
-            "role": user.get("role"),
+            "user_id": user.get("email"),
+            "role": "no_role" if not user.get("role") else user.get("role"),
             "action": "create_apartment",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "details": data
+            "details": {**data, 'id': doc_ref.id}
         }
         db.collection("logs").add(log_entry)
         return make_cors_response(jsonify({"status": "created"}), 201)
 
     elif request.method == 'GET':
         apartments = db.collection('apartments').stream()
-        result = [doc.to_dict() for doc in apartments]
+        result = [{**doc.to_dict(), 'id': doc.id} for doc in apartments]
         return make_cors_response(jsonify(result), 200)
     
 def main(request):
