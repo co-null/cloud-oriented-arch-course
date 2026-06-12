@@ -63,7 +63,7 @@ def apartments():
         logging.info(f"doc_ref: {doc_ref}")
         # Логування створення
         log_entry = {
-            "user_id": user.get("email"),
+            "user_id": user.get("user"),
             "role": "no_role" if not user.get("role") else user.get("role"),
             "action": "create_apartment",
             "timestamp": datetime.now(timezone.utc).isoformat(),
