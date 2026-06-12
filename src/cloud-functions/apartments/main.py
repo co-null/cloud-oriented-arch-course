@@ -59,7 +59,7 @@ def apartments():
         errors = validate_apartment(data)
         if errors:
             return make_cors_response(jsonify({"detail": " ".join(errors)}), 400)
-        doc_ref = db.collection('apartments').add(data)
+        _, doc_ref = db.collection('apartments').add(data)
         logging.info(f"doc_ref: {doc_ref}")
         # Логування створення
         log_entry = {
@@ -69,7 +69,7 @@ def apartments():
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "details": {**data, 'id': doc_ref.id}
         }
-        logging.info(f"log_entry: {log_entry}")
+        logging.info(f"log_entry: {doc_ref.id}")
         db.collection("logs").add(log_entry)
         return make_cors_response(jsonify({"status": "created"}), 201)
 
