@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, make_response
 import firebase_admin
 from firebase_admin import credentials, firestore
 from datetime import datetime, timezone
-import requests
+import requests, logging
 
 # Ініціалізація Firestore
 cred = credentials.ApplicationDefault()
@@ -60,6 +60,7 @@ def apartments():
         if errors:
             return make_cors_response(jsonify({"detail": " ".join(errors)}), 400)
         doc_ref, _ = db.collection('apartments').add(data)
+        logging.info(f"doc_ref: {doc_ref}")
         # Логування створення
         log_entry = {
             "user_id": user.get("email"),
@@ -68,6 +69,7 @@ def apartments():
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "details": {**data, 'id': doc_ref.id}
         }
+        logging.info(f"log_entry: {log_entry}")
         db.collection("logs").add(log_entry)
         return make_cors_response(jsonify({"status": "created"}), 201)
 
