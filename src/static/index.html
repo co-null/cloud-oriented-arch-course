@@ -251,15 +251,29 @@ document.getElementById('apartmentForm').addEventListener('submit', async functi
     price: parseInt(document.getElementById('price').value),
     description: document.getElementById('description').value
   };
-  await fetch(APARTMENTS_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + idToken
-    },
-    body: JSON.stringify(data)
+
+  try {
+    const response = await fetch(APARTMENTS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + idToken
+      },
+      body: JSON.stringify(data)
   });
-  alert('Квартиру додано!');
+
+  const result = await response.json();
+    if (response.ok) {
+      alert('Квартиру додано!');
+      document.getElementById('apartmentForm').reset();
+    } else {
+      // Вивести повідомлення про помилку з detail або status
+      alert('Помилка: ' + (result.detail || result.status || 'Невідома помилка'));
+    }
+  } catch (err) {
+    alert('Помилка мережі: ' + err.message);
+  }
+
 });
 
 document.getElementById('loadBtn').addEventListener('click', async function(e) {
