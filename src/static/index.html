@@ -72,13 +72,18 @@
           <textarea id="description" placeholder="Опис" style="width:100%;margin-bottom:0.5em;"></textarea>
           <button type="submit" style="width:100%;">Додати квартиру</button>
         </form>
-        <button id="loadBtn" style="width:100%;margin-top:0.5em;">Завантажити квартири</button>
-        <div id="apartmentsList" style="margin-top:1em;"></div>
       </div>
       <div class="feature">
         <img src="img/feature3.png" alt="Feature 3">
-        <h3>Перевага 3</h3>
-        <p>Praesent sapien massa, convallis a pellentesque nec, egestas non nisi.</p>
+        <h3>Бронювання квартир на період</h3>
+        <form id="dateFilterForm" style="margin-bottom:1em;">
+          <label for="dateFrom">Дата з:</label>
+          <input type="date" id="dateFrom" required>
+          <label for="dateTo" style="margin-left:1em;">Дата по:</label>
+          <input type="date" id="dateTo" required>
+        </form>
+        <button id="loadBtn" style="width:100%;margin-bottom:1em;">Завантажити квартири</button>
+        <div id="apartmentsList" style="margin-top:1em;"></div>
       </div>
     </section>
   </main>
@@ -235,6 +240,7 @@ async function getIdToken() {
 
 // Форма для додання та відображення списку квартир через Cloud Function
 const APARTMENTS_URL = "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/apartments"; 
+const BOOKINGS_URL = "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/bookings";
 
 document.getElementById('apartmentForm').addEventListener('submit', async function(e) {
   e.preventDefault();
@@ -291,11 +297,56 @@ document.getElementById('loadBtn').addEventListener('click', async function(e) {
 
   if (res.ok) {
     const apartments = await res.json();
-    const list = apartments.map(a => `<div>${a.address}, ${a.rooms} кімн., ${a.price} грн — ${a.description}</div>`).join('');
-    document.getElementById('apartmentsList').innerHTML = list;
+    document.getElementById('apartmentsList').innerHTML = apartments.map(a => `
+        <div style="border:1px solid #ccc;padding:0.5em;margin-bottom:0.5em;border-radius:6px;">
+          <b>${a.address}</b>, ${a.rooms} кімн., ${a.price} грн — ${a.description || ''}
+          <br>
+          <button class="book-btn" data-id="${a.id}">Забронювати</button>
+        </div>
+      `).join('');
   } else {
     const error = await res.json();
     alert('Помилка: ' + (error.detail || 'Невідома помилка'));
+  }
+});
+
+// Обробка кліку на "Забронювати"
+document.getElementById('apartmentsList').addEventListener('click', async function(e) {
+  if (e.target.classList.contains('book-btn')) {
+    const apartmentId = e.target.getAttribute('data-id');
+    const dateFrom = document.getElementById('dateFrom').value;
+    const dateTo = document.getElementById('dateTo').value;
+    const idToken = await getIdToken();
+
+    if (!idToken) {
+      alert('Ви не авторизовані!');
+      return;
+    }
+
+    // POST-запит на бронювання
+    try {
+      const res = await fetch(BOOKINGS_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + idToken
+        },
+        body: JSON.stringify({
+          apartment_id: apartmentId,
+          start_date: dateFrom,
+          end_date: dateTo
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert('Бронювання успішно створено!');
+      } else {
+        alert('Помилка: ' + (data.error || data.message || 'Невідома помилка'));
+      }
+    } catch (err) {
+      alert('Помилка мережі: ' + err.message);
+    }
   }
 });
 
