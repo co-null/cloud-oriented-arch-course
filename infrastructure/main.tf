@@ -157,6 +157,37 @@ resource "google_cloudfunctions_function_iam_member" "apartments_api_invoker" {
   member         = "allUsers"
 }
 
+# Бронювання
+# Завантаження (копіювання/оновлення) функції (як архіву) для apartments з локальної директорії у bucket для функції
+resource "google_storage_bucket_object" "bookings_function_zip" {
+  name   = "bookings.zip"
+  bucket = google_storage_bucket.function_bucket.name
+  source = "${path.module}/../src/cloud-functions/bookings/bookings.zip"
+}
+
+resource "google_cloudfunctions_function" "bookings_api" {
+  name        = "bookings"
+  description = "Endpoint for bookings"
+  runtime     = "python310"
+  entry_point = "main"
+  trigger_http = true
+  available_memory_mb = 128
+
+  source_archive_bucket = google_storage_bucket.function_bucket.name
+  source_archive_object = google_storage_bucket_object.bookings_function_zip.name
+
+  ingress_settings = "ALLOW_ALL"
+  https_trigger_security_level = "SECURE_ALWAYS"
+}
+
+resource "google_cloudfunctions_function_iam_member" "bookings_api_invoker" {
+  project        = var.project_id
+  region         = var.region
+  cloud_function = google_cloudfunctions_function.bookings_api.name
+  role           = "roles/cloudfunctions.invoker"
+  member         = "allUsers"
+}
+
 # Вивід URL для bucket
 output "static_site_url" {
   description = "URL для доступу до статичного сайту"
