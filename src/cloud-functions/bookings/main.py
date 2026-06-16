@@ -67,7 +67,9 @@ def bookings():
             return make_cors_response(jsonify({"detail": " ".join(errors)}), 400)
         
         # Транзакція для перевірки конфлікту та створення бронювання
+        @firestore.transactional
         def transaction_func(transaction):
+            print("Створюємо документ:", new_id)
             bookings_ref = db.collection('bookings')
             conflict_query = bookings_ref.where('apartment_id', '==', apartment_id)\
                 .where('start_date', '<', end_date)\
@@ -92,7 +94,8 @@ def bookings():
             print("Документ створено")
 
         try:
-            db.transaction(transaction_func)
+            transaction = db.transaction()
+            transaction_func(transaction)
             # Логування успішної спроби
             db.collection('booking_logs').add({
                 'user_id': user_id,
