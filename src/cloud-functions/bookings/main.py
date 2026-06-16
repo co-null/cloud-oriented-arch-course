@@ -71,7 +71,6 @@ def bookings():
         def transaction_func(transaction):
             print("Run transaction_func")
             bookings_ref = db.collection('bookings')
-            # Використовуємо конструкцію filter для запиту замість позиційних аргументів
             conflict_query = bookings_ref.where('apartment_id', '==', apartment_id)\
                 .where('start_date', '<=', end_date)\
                 .where('end_date', '>=', start_date)\
@@ -92,7 +91,7 @@ def bookings():
             new_id = str(uuid.uuid4())
             print(f"Створюємо документ: {new_id}")
             doc_ref = bookings_ref.document(new_id)
-            doc_ref.set(booking_data, transaction=transaction)
+            transaction.set(doc_ref, booking_data)
             print("Документ створено")
 
         try:
