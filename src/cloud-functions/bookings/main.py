@@ -86,8 +86,10 @@ def bookings():
             }
             # Створюємо новий документ з унікальним ID
             new_id = str(uuid.uuid4())
+            print("Створюємо документ:", new_id)
             doc_ref = bookings_ref.document(new_id)
             doc_ref.set(booking_data, transaction=transaction)
+            print("Документ створено")
 
         try:
             db.transaction(transaction_func)
