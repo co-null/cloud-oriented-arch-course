@@ -71,9 +71,10 @@ def bookings():
         def transaction_func(transaction):
             print("Run transaction_func")
             bookings_ref = db.collection('bookings')
-            conflict_query = bookings_ref.where('apartment_id', '==', apartment_id)\
-                .where('start_date', '<', end_date)\
-                .where('end_date', '>', start_date)\
+            # Використовуємо конструкцію filter для запиту замість позиційних аргументів
+            conflict_query = bookings_ref.where(filter=('apartment_id', '==', apartment_id))\
+                .where(filter=('start_date', '<=', end_date))\
+                .where(filter=('end_date', '>=', start_date))\
                 .limit(1)
             conflict = [doc for doc in conflict_query.stream(transaction=transaction)]
             print(f"conflict: {conflict}")
