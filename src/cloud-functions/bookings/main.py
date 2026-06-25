@@ -69,14 +69,12 @@ def bookings():
         # Транзакція для перевірки конфлікту та створення бронювання
         @firestore.transactional
         def transaction_func(transaction):
-            print("Run transaction_func")
             bookings_ref = db.collection('bookings')
             conflict_query = bookings_ref.where('apartment_id', '==', apartment_id)\
                 .where('start_date', '<=', end_date)\
                 .where('end_date', '>=', start_date)\
                 .limit(1)
             conflict = [doc for doc in conflict_query.stream(transaction=transaction)]
-            print(f"conflict: {conflict}")
             if conflict:
                 raise Exception('Квартира вже заброньована на ці дати')
 
@@ -89,11 +87,8 @@ def bookings():
             }
             # Створюємо новий документ з унікальним ID
             new_id = str(uuid.uuid4())
-            print(f"Створюємо документ: {new_id}")
             doc_ref = bookings_ref.document(new_id)
             transaction.set(doc_ref, booking_data)
-            print("Документ створено")
-
         try:
             transaction = db.transaction()
             transaction_func(transaction)
