@@ -9,6 +9,8 @@ import os, requests, logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+TOPIC_NAME = "booking-events"
+
 # Ініціалізація Firestore
 cred = credentials.ApplicationDefault()
 firebase_admin.initialize_app(cred)
