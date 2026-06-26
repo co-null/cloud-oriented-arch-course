@@ -15,12 +15,34 @@ project_id = os.environ.get('GCP_PROJECT')
 TOPIC_NAME = os.environ.get('PUBSUB_TOPIC')
 
 # Ініціалізація Firestore
-cred = credentials.ApplicationDefault()
-firebase_admin.initialize_app(cred)
-db = firestore.client()
+if not firebase_admin._apps:
+    try:
+        # Використовуємо Application Default Credentials
+        cred = credentials.ApplicationDefault()
+        firebase_admin.initialize_app(cred, {
+            'projectId': project_id
+        })
+        logger.info("Firebase Admin SDK initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize Firebase Admin SDK: {e}")
+        raise
+
+# Ініціалізація Firestore
+try:
+    db = firestore.client()
+    logger.info("Firestore client initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize Firestore client: {e}")
+    raise
 
 # Ініціалізація Pub/Sub клієнтів
-publisher = pubsub_v1.PublisherClient()
+try:
+    publisher = pubsub_v1.PublisherClient()
+    logger.info("Pub/Sub publisher initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize Pub/Sub publisher: {e}")
+    raise
+
 
 app = Flask(__name__)
 
@@ -100,18 +122,32 @@ def verify_token_via_cloud_function():
 
 @app.route('/', methods=['POST', 'GET', 'OPTIONS'])
 def bookings():
+    """Основна функція для роботи з бронюваннями"""
     if request.method == 'OPTIONS':
         return make_cors_response('', 204)
     
+    # Перевірка токена
     user, error_resp = verify_token_via_cloud_function()
     if not user:
         return error_resp
     
     user_id = user.get("user")
+    logger.info(f"Processing request for user: {user_id}")
 
     if request.method == 'POST':
+        return create_booking(user_id)
+    elif request.method == 'GET':
+        return get_bookings(user_id)
+
+def create_booking(user_id):
+    """Створення нового бронювання"""   
+    try:
         errors = []
         data = request.get_json()
+
+        if not data:
+            return make_cors_response(jsonify({"detail": "Відсутні дані"}), 400)
+        
         apartment_id = data.get('apartment_id')
         start_date = data.get('start_date')
         end_date = data.get('end_date')
@@ -125,9 +161,14 @@ def bookings():
             errors.append("Дата початку має бути меншою за дату завершення")
 
         # Перевірка apartment_id
-        apartment_ref = db.collection('apartments').document(apartment_id)
-        if not apartment_ref.get().exists:
-            errors.append("Квартира не знайдена")
+        try:
+            apartment_ref = db.collection('apartments').document(apartment_id)
+            apartment_doc = apartment_ref.get()
+            if not apartment_doc.exists:
+                errors.append("Квартира не знайдена")
+        except Exception as e:
+            logger.error(f"Error checking apartment: {e}")
+            errors.append("Помилка перевірки квартири")
 
         if errors:
             return make_cors_response(jsonify({"detail": " ".join(errors)}), 400)
@@ -159,43 +200,75 @@ def bookings():
         try:
             transaction = db.transaction()
             transaction_func(transaction)
-            message_id = add_message_to_topic({
-                'event': 'booking_created', 'user_id': user_id,
-                'apartment_id': apartment_id,
-                'start_date': start_date,
-                'end_date': end_date
-            })
-            # Логування успішної спроби
-            db.collection('booking_logs').add({
-                'user_id': user_id,
-                'apartment_id': apartment_id,
-                'start_date': start_date,
-                'end_date': end_date,
-                'status': 'success',
-                'message_id': message_id,
-                'timestamp': datetime.now(timezone.utc).isoformat()
-            })
-            return make_cors_response(jsonify({'message': 'Бронювання створено'}), 201)
-        except Exception as e:
-            # Логування невдалої спроби
-            db.collection('booking_logs').add({
-                'user_id': user_id,
-                'apartment_id': apartment_id,
-                'start_date': start_date,
-                'end_date': end_date,
-                'status': 'fail',
-                'error': str(e),
-                'timestamp': datetime.now(timezone.utc).isoformat()
-            })
-            return make_cors_response(jsonify({'error': str(e)}), 409)
 
-    elif request.method == 'GET':
+            # Публікація події в Pub/Sub
+            message_id = add_message_to_topic({
+                'event': 'booking_created',
+                'booking_id': booking_id,
+                'user_id': user_id,
+                'apartment_id': apartment_id,
+                'start_date': start_date,
+                'end_date': end_date,
+                'created_at': booking_data['created_at']
+            })
+
+            # Логування успішної спроби
+            try:
+                db.collection('booking_logs').add({
+                    'user_id': user_id,
+                    'apartment_id': apartment_id,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'status': 'success',
+                    'message_id': message_id,
+                    'timestamp': datetime.now(timezone.utc).isoformat()
+                })
+            except Exception as e:
+                logger.error(f"Error logging booking: {e}")
+
+            return make_cors_response(jsonify({'message': 'Бронювання створено'}), 201)
+        
+        except Exception as e:
+            logger.error(f"Error creating booking: {e}")
+            # Логування невдалої спроби
+            try:
+                db.collection('booking_logs').add({
+                    'user_id': user_id,
+                    'apartment_id': apartment_id,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'status': 'fail',
+                    'error': str(e),
+                    'timestamp': datetime.now(timezone.utc).isoformat()
+                })
+            except Exception as log_error:
+                logger.error(f"Error logging failed booking: {log_error}")
+
+            return make_cors_response(jsonify({'error': str(e)}), 409)
+        
+    except Exception as e:
+        logger.error(f"Unexpected error in create_booking: {e}")
+        return make_cors_response(jsonify({'error': 'Внутрішня помилка сервера'}), 500)
+
+def get_bookings(user_id):
+    """Отримання бронювань користувача"""
+    try:
         bookings_ref = db.collection('bookings')
         bookings_query = bookings_ref.where('user_id', '==', user_id)
         bookings = bookings_query.stream()
         result = [doc.to_dict() for doc in bookings]
         return make_cors_response(jsonify(result), 200)
     
+    except Exception as e:
+        logger.error(f"Error getting bookings: {e}")
+        return make_cors_response(jsonify({'error': 'Помилка отримання бронювань'}), 500)
+
+
 def main(request):
-    with app.request_context(request.environ):
-        return app.full_dispatch_request()
+    """Головна функція для Cloud Functions"""
+    try:
+        with app.request_context(request.environ):
+            return app.full_dispatch_request()
+    except Exception as e:
+        logger.error(f"Error in main function: {e}")
+        return make_cors_response(jsonify({'error': 'Внутрішня помилка сервера'}), 500)

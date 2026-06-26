@@ -4,6 +4,109 @@ provider "google" {
   region  = var.region
 }
 
+# Тут буде блок для використовуваних сервісів
+resource "google_project_service" "firestore_api" {
+  project = var.project_id
+  service = "firestore.googleapis.com"
+  
+  disable_dependent_services = false
+  disable_on_destroy         = false
+}
+
+resource "google_project_service" "pubsub_api" {
+  project = var.project_id
+  service = "pubsub.googleapis.com"
+  
+  disable_dependent_services = false
+  disable_on_destroy         = false
+}
+
+resource "google_project_service" "cloudfunctions_api" {
+  project = var.project_id
+  service = "cloudfunctions.googleapis.com"
+  
+  disable_dependent_services = false
+  disable_on_destroy         = false
+}
+
+resource "google_project_service" "iam_api" {
+  project = var.project_id
+  service = "iam.googleapis.com"
+  
+  disable_dependent_services = false
+  disable_on_destroy         = false
+}
+
+# Блок для роботи з сервісними акаунтами
+# Права для роботи з Firestore
+resource "google_project_iam_member" "function_sa_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+# Додаткові права для Firestore (якщо потрібно створювати колекції)
+resource "google_project_iam_member" "function_sa_firestore_owner" {
+  project = var.project_id
+  role    = "roles/datastore.owner"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+# Права для Firebase Admin SDK
+resource "google_project_iam_member" "function_sa_firebase_admin" {
+  project = var.project_id
+  role    = "roles/firebase.admin"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+# Project-level IAM для Service Accounts
+resource "google_project_iam_member" "function_sa_pubsub_admin" {
+  project = var.project_id
+  role    = "roles/pubsub.admin"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+resource "google_project_iam_member" "function_sa_logging" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+resource "google_project_iam_member" "function_sa_monitoring" {
+  project = var.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+# IAM для створення топіків (якщо потрібно динамічне створення)
+resource "google_project_iam_member" "function_sa_topic_admin" {
+  project = var.project_id
+  role    = "roles/pubsub.editor"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+# Права для всіх Cloud Functions на використання Service Account
+resource "google_service_account_iam_member" "functions_sa_user" {
+  service_account_id = google_service_account.pubsub_function_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.project_id}@appspot.gserviceaccount.com"
+}
+
+# Додаткові права для функцій
+resource "google_project_iam_member" "function_sa_token_creator" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountTokenCreator"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+# Права на створення підписок
+resource "google_project_iam_member" "function_sa_subscription_admin" {
+  project = var.project_id
+  role    = "roles/pubsub.admin"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+
 # Створення Google Cloud Storage bucket для статичного сайту
 resource "google_storage_bucket" "static_site" {
   name     = var.bucket_name
@@ -140,7 +243,7 @@ resource "google_cloudfunctions_function" "apartments_api" {
   runtime     = "python310"
   entry_point = "main"
   trigger_http = true
-  available_memory_mb = 128
+  available_memory_mb = 256
 
   source_archive_bucket = google_storage_bucket.function_bucket.name
   source_archive_object = google_storage_bucket_object.apartments_function_zip.name
@@ -183,7 +286,8 @@ resource "google_cloudfunctions_function" "bookings_api" {
   runtime     = "python310"
   entry_point = "main"
   trigger_http = true
-  available_memory_mb = 128
+  available_memory_mb = 256
+  timeout = 60
 
   source_archive_bucket = google_storage_bucket.function_bucket.name
   source_archive_object = google_storage_bucket_object.bookings_function_zip.name
@@ -197,7 +301,9 @@ resource "google_cloudfunctions_function" "bookings_api" {
 
   depends_on = [
     google_service_account.pubsub_function_sa,
-    google_pubsub_topic.main_topic
+    google_pubsub_topic.main_topic,
+    google_project_service.firestore_api,
+    google_project_service.cloudfunctions_api
   ]
 
   ingress_settings = "ALLOW_ALL"
@@ -226,7 +332,7 @@ resource "google_cloudfunctions_function" "messages_api" {
   runtime     = "python310"
   entry_point = "main"
   trigger_http = true
-  available_memory_mb = 128
+  available_memory_mb = 256
 
   source_archive_bucket = google_storage_bucket.function_bucket.name
   source_archive_object = google_storage_bucket_object.messages_function_zip.name
@@ -258,30 +364,6 @@ resource "google_cloudfunctions_function_iam_member" "messages_api_invoker" {
 }
 
 # Додання брокера Pub-Sub
-resource "google_project_service" "pubsub_api" {
-  project = var.project_id
-  service = "pubsub.googleapis.com"
-  
-  disable_dependent_services = false
-  disable_on_destroy         = false
-}
-
-resource "google_project_service" "cloudfunctions_api" {
-  project = var.project_id
-  service = "cloudfunctions.googleapis.com"
-  
-  disable_dependent_services = false
-  disable_on_destroy         = false
-}
-
-resource "google_project_service" "iam_api" {
-  project = var.project_id
-  service = "iam.googleapis.com"
-  
-  disable_dependent_services = false
-  disable_on_destroy         = false
-}
-
 # Основний топік для повідомлень
 resource "google_pubsub_topic" "main_topic" {
   name    = var.topic_name
@@ -390,53 +472,6 @@ resource "google_pubsub_subscription_iam_binding" "viewer_subscription_binding" 
     "serviceAccount:${google_service_account.pubsub_function_sa.email}",
     "serviceAccount:${google_service_account.pubsub_subscriber_sa.email}"
   ]
-}
-
-# Project-level IAM для Service Accounts
-resource "google_project_iam_member" "function_sa_pubsub_admin" {
-  project = var.project_id
-  role    = "roles/pubsub.admin"
-  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
-}
-
-resource "google_project_iam_member" "function_sa_logging" {
-  project = var.project_id
-  role    = "roles/logging.logWriter"
-  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
-}
-
-resource "google_project_iam_member" "function_sa_monitoring" {
-  project = var.project_id
-  role    = "roles/monitoring.metricWriter"
-  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
-}
-
-# IAM для створення топіків (якщо потрібно динамічне створення)
-resource "google_project_iam_member" "function_sa_topic_admin" {
-  project = var.project_id
-  role    = "roles/pubsub.editor"
-  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
-}
-
-# Права для всіх Cloud Functions на використання Service Account
-resource "google_service_account_iam_member" "functions_sa_user" {
-  service_account_id = google_service_account.pubsub_function_sa.name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${var.project_id}@appspot.gserviceaccount.com"
-}
-
-# Додаткові права для функцій
-resource "google_project_iam_member" "function_sa_token_creator" {
-  project = var.project_id
-  role    = "roles/iam.serviceAccountTokenCreator"
-  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
-}
-
-# Права на створення підписок
-resource "google_project_iam_member" "function_sa_subscription_admin" {
-  project = var.project_id
-  role    = "roles/pubsub.admin"
-  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
 }
 
 # Вивід URL для bucket
