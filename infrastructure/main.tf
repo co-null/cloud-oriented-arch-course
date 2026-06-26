@@ -219,6 +219,151 @@ resource "google_cloudfunctions_function_iam_member" "messages_api_invoker" {
   member         = "allUsers"
 }
 
+# Додання брокера Pub-Sub
+resource "google_project_service" "pubsub_api" {
+  project = var.project_id
+  service = "pubsub.googleapis.com"
+  
+  disable_dependent_services = false
+  disable_on_destroy         = false
+}
+
+# Основний топік для повідомлень
+resource "google_pubsub_topic" "main_topic" {
+  name    = var.topic_name
+  project = var.project_id
+  
+  # Налаштування retention
+  message_retention_duration = "604800s" # 7 днів
+  
+  depends_on = [google_project_service.pubsub_api]
+}
+
+# Основна підписка
+resource "google_pubsub_subscription" "main_subscription" {
+  name    = "${var.topic_name}-subscription"
+  topic   = google_pubsub_topic.main_topic.name
+  project = var.project_id
+  
+  # Налаштування acknowledgment
+  ack_deadline_seconds = 60
+  
+  # Налаштування retention
+  message_retention_duration = "604800s" # 7 днів
+  retain_acked_messages      = false
+  
+  # Налаштування retry policy
+  retry_policy {
+    minimum_backoff = "10s"
+    maximum_backoff = "600s"
+  }
+    
+  # Налаштування expiration
+  expiration_policy {
+    ttl = "2678400s" # 31 день
+  }
+  
+  depends_on = [
+    google_pubsub_topic.main_topic,
+  ]
+}
+
+# Service Account для Cloud Functions
+resource "google_service_account" "pubsub_function_sa" {
+  account_id   = "pubsub-function-sa"
+  display_name = "Pub/Sub Cloud Function Service Account"
+  description  = "Service account for Cloud Functions that work with Pub/Sub"
+  project      = var.project_id
+}
+
+# Service Account для Publisher
+resource "google_service_account" "pubsub_publisher_sa" {
+  account_id   = "pubsub-publisher-sa"
+  display_name = "Pub/Sub Publisher Service Account"
+  description  = "Service account for publishing messages to Pub/Sub"
+  project      = var.project_id
+}
+
+# Service Account для Subscriber
+resource "google_service_account" "pubsub_subscriber_sa" {
+  account_id   = "pubsub-subscriber-sa"
+  display_name = "Pub/Sub Subscriber Service Account"
+  description  = "Service account for subscribing to Pub/Sub messages"
+  project      = var.project_id
+}
+
+# IAM bindings для топіків
+resource "google_pubsub_topic_iam_binding" "publisher_binding" {
+  topic   = google_pubsub_topic.main_topic.name
+  role    = "roles/pubsub.publisher"
+  project = var.project_id
+  
+  members = [
+    "serviceAccount:${google_service_account.pubsub_function_sa.email}",
+    "serviceAccount:${google_service_account.pubsub_publisher_sa.email}"
+  ]
+}
+
+resource "google_pubsub_topic_iam_binding" "viewer_binding" {
+  topic   = google_pubsub_topic.main_topic.name
+  role    = "roles/pubsub.viewer"
+  project = var.project_id
+  
+  members = [
+    "serviceAccount:${google_service_account.pubsub_function_sa.email}",
+    "serviceAccount:${google_service_account.pubsub_subscriber_sa.email}"
+  ]
+}
+
+# IAM bindings для підписок
+resource "google_pubsub_subscription_iam_binding" "subscriber_binding" {
+  subscription = google_pubsub_subscription.main_subscription.name
+  role         = "roles/pubsub.subscriber"
+  project      = var.project_id
+  
+  members = [
+    "serviceAccount:${google_service_account.pubsub_function_sa.email}",
+    "serviceAccount:${google_service_account.pubsub_subscriber_sa.email}"
+  ]
+}
+
+resource "google_pubsub_subscription_iam_binding" "viewer_subscription_binding" {
+  subscription = google_pubsub_subscription.main_subscription.name
+  role         = "roles/pubsub.viewer"
+  project      = var.project_id
+  
+  members = [
+    "serviceAccount:${google_service_account.pubsub_function_sa.email}",
+    "serviceAccount:${google_service_account.pubsub_subscriber_sa.email}"
+  ]
+}
+
+# Project-level IAM для Service Accounts
+resource "google_project_iam_member" "function_sa_pubsub_admin" {
+  project = var.project_id
+  role    = "roles/pubsub.admin"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+resource "google_project_iam_member" "function_sa_logging" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+resource "google_project_iam_member" "function_sa_monitoring" {
+  project = var.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+# IAM для створення топіків (якщо потрібно динамічне створення)
+resource "google_project_iam_member" "function_sa_topic_admin" {
+  project = var.project_id
+  role    = "roles/pubsub.editor"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
 # Вивід URL для bucket
 output "static_site_url" {
   description = "URL для доступу до статичного сайту"

@@ -17,3 +17,8 @@ variable "mailgun_domain" {
   description = "Домен для відправки email"
   type        = string
 }
+
+variable "topic_name" {
+  description = "Топік для подій додавання квартир і бронювань"
+  type        = string
+}
