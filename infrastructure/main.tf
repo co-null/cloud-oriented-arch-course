@@ -271,8 +271,7 @@ resource "google_project_service" "cloudfunctions_api" {
   service = "cloudfunctions.googleapis.com"
   
   disable_dependent_services = false
-  disable_on
-_destroy         = false
+  disable_on_destroy         = false
 }
 
 resource "google_project_service" "iam_api" {
