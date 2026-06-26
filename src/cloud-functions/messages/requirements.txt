@@ -1,4 +1,3 @@
 flask
-firebase-admin
 requests
 google-cloud-pubsub==2.*

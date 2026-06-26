@@ -1,15 +1,80 @@
 from flask import Flask, request, jsonify, make_response
 import firebase_admin
 from firebase_admin import credentials, firestore
-from datetime import datetime, timezone
-import requests, logging, uuid
+from datetime import datetime, timedelta, timezone
+import os, requests, logging, uuid, json
+from google.cloud import pubsub_v1
+from google.api_core import exceptions
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+TOPIC_NAME = "booking-events"
 
 # Ініціалізація Firestore
 cred = credentials.ApplicationDefault()
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
+# Ініціалізація Pub/Sub клієнтів
+publisher = pubsub_v1.PublisherClient()
+project_id = os.environ.get('GCP_PROJECT', os.environ.get('GOOGLE_CLOUD_PROJECT'))
+
 app = Flask(__name__)
+
+def ensure_topic_exists(topic_name):
+    """Створює топік, якщо він не існує"""
+    topic_path = publisher.topic_path(project_id, topic_name)
+    try:
+        # Спроба отримати існуючий топік
+        publisher.get_topic(request={"topic": topic_path})
+        logger.info(f"Topic {topic_name} already exists")
+        return topic_path
+    except exceptions.NotFound:
+        # Створення нового топіку
+        try:
+            topic = publisher.create_topic(request={"name": topic_path})
+            logger.info(f"Created topic: {topic.name}")
+            return topic_path
+        except exceptions.AlreadyExists:
+            # Топік був створений іншим процесом
+            logger.info(f"Topic {topic_name} was created by another process")
+            return topic_path
+    except Exception as e:
+        raise
+
+def add_message_to_topic(message_data, topic_name=TOPIC_NAME):
+    try:
+        # Створення топіку, якщо не існує
+        topic_path = ensure_topic_exists(topic_name)
+        # Підготовка повідомлення
+        message_json = json.dumps(message_data, ensure_ascii=False)
+        message_bytes = message_json.encode('utf-8')
+        # Додавання системних атрибутів
+        attributes = {
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'function_name': 'bookings',
+            'project_id': project_id
+        }
+        # Публікація повідомлення
+        future = publisher.publish(
+            topic_path,
+            data=message_bytes,
+            **attributes
+        )
+        
+        # Очікування результату
+        message_id = future.result(timeout=30)
+        logger.info(f"Message published to {topic_name} with ID: {message_id}")
+        return message_id
+
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Error publishing message: {e}")
+        return None
 
 def make_cors_response(response, status=200):
     resp = make_response(response, status)
@@ -89,9 +154,16 @@ def bookings():
             new_id = str(uuid.uuid4())
             doc_ref = bookings_ref.document(new_id)
             transaction.set(doc_ref, booking_data)
+
         try:
             transaction = db.transaction()
             transaction_func(transaction)
+            message_id = add_message_to_topic({
+                'event': 'booking_created', 'user_id': user_id,
+                'apartment_id': apartment_id,
+                'start_date': start_date,
+                'end_date': end_date
+            })
             # Логування успішної спроби
             db.collection('booking_logs').add({
                 'user_id': user_id,
@@ -99,6 +171,7 @@ def bookings():
                 'start_date': start_date,
                 'end_date': end_date,
                 'status': 'success',
+                'message_id': message_id,
                 'timestamp': datetime.now(timezone.utc).isoformat()
             })
             return make_cors_response(jsonify({'message': 'Бронювання створено'}), 201)

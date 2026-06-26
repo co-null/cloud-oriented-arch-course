@@ -317,37 +317,19 @@ document.getElementById('apartmentsList').addEventListener('click', async functi
     const dateFrom = document.getElementById('dateFrom').value;
     const dateTo = document.getElementById('dateTo').value;
     const idToken = await getIdToken();
-
-    if (!idToken) {
-      alert('Ви не авторизовані!');
-      return;
-    }
-
+    if (!idToken) {alert('Ви не авторизовані!'); return;}
     // POST-запит на бронювання
     try {
       const res = await fetch(BOOKINGS_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + idToken
-        },
-        body: JSON.stringify({
-          apartment_id: apartmentId,
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken},
+        body: JSON.stringify({apartment_id: apartmentId,
           start_date: dateFrom,
-          end_date: dateTo
-        })
-      });
-
+          end_date: dateTo}) });
       const data = await res.json();
-      if (res.ok) {
-        alert('Бронювання успішно створено!');
-      } else {
-        alert('Помилка: ' + (data.error || data.message || 'Невідома помилка'));
-      }
-    } catch (err) {
-      alert('Помилка мережі: ' + err.message);
-    }
-  }
+      if (res.ok) {alert('Бронювання успішно створено!');} 
+      else {alert('Помилка: ' + (data.error || data.message || 'Невідома помилка'));}
+    } catch (err) {alert('Помилка мережі: ' + err.message);}}
 });
 
 </script>

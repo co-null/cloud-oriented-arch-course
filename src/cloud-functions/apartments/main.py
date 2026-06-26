@@ -1,16 +1,79 @@
 from flask import Flask, request, jsonify, make_response
 import firebase_admin
 from firebase_admin import credentials, firestore
+from google.cloud import pubsub_v1
+from google.api_core import exceptions
 from datetime import datetime, timezone
-import requests, logging
+import os, requests, logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Ініціалізація Firestore
 cred = credentials.ApplicationDefault()
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
+# Ініціалізація Pub/Sub клієнтів
+publisher = pubsub_v1.PublisherClient()
+project_id = os.environ.get('GCP_PROJECT', os.environ.get('GOOGLE_CLOUD_PROJECT'))
+
 app = Flask(__name__)
 
+
+def ensure_topic_exists(topic_name):
+    """Створює топік, якщо він не існує"""
+    topic_path = publisher.topic_path(project_id, topic_name)
+    try:
+        # Спроба отримати існуючий топік
+        publisher.get_topic(request={"topic": topic_path})
+        logger.info(f"Topic {topic_name} already exists")
+        return topic_path
+    except exceptions.NotFound:
+        # Створення нового топіку
+        try:
+            topic = publisher.create_topic(request={"name": topic_path})
+            logger.info(f"Created topic: {topic.name}")
+            return topic_path
+        except exceptions.AlreadyExists:
+            # Топік був створений іншим процесом
+            logger.info(f"Topic {topic_name} was created by another process")
+            return topic_path
+    except Exception as e:
+        raise
+
+def add_message_to_topic(message_data, topic_name=TOPIC_NAME):
+    try:
+        # Створення топіку, якщо не існує
+        topic_path = ensure_topic_exists(topic_name)
+        # Підготовка повідомлення
+        message_json = json.dumps(message_data, ensure_ascii=False)
+        message_bytes = message_json.encode('utf-8')
+        # Додавання системних атрибутів
+        attributes = {
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'function_name': 'bookings',
+            'project_id': project_id
+        }
+        # Публікація повідомлення
+        future = publisher.publish(
+            topic_path,
+            data=message_bytes,
+            **attributes
+        )
+        
+        # Очікування результату
+        message_id = future.result(timeout=30)
+        logger.info(f"Message published to {topic_name} with ID: {message_id}")
+        return message_id
+
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Error publishing message: {e}")
+        return None
+    
 # Валідація даних квартири
 def validate_apartment(data):
     errors = []
@@ -59,19 +122,41 @@ def apartments():
         errors = validate_apartment(data)
         if errors:
             return make_cors_response(jsonify({"detail": " ".join(errors)}), 400)
-        _, doc_ref = db.collection('apartments').add(data)
-        logging.info(f"doc_ref: {doc_ref}")
-        # Логування створення
-        log_entry = {
-            "user_id": user.get("user"),
-            "role": "no_role" if not user.get("role") else user.get("role"),
-            "action": "create_apartment",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "details": {**data, 'id': doc_ref.id}
-        }
-        logging.info(f"log_entry: {doc_ref.id}")
-        db.collection("logs").add(log_entry)
-        return make_cors_response(jsonify({"status": "created"}), 201)
+        
+        try:
+            _, doc_ref = db.collection('apartments').add(data)
+            message_id = add_message_to_topic({
+                    'event': 'booking_created', 
+                    'user_id': user.get("user"),
+                    'apartment_id': doc_ref.id, 
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    "data": data
+                })
+
+            # Логування створення
+            log_entry = {
+                "user_id": user.get("user"),
+                "role": "no_role" if not user.get("role") else user.get("role"),
+                "action": "create_apartment",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "details": {**data, 'id': doc_ref.id},
+                "message_id": message_id
+            }
+            db.collection("logs").add(log_entry)
+            return make_cors_response(jsonify({"status": "created"}), 201)
+
+        except Exception as e:
+            # Логування невдалої спроби
+            db.collection('logs').add({
+                "user_id": user.get("user"),
+                "role": "no_role" if not user.get("role") else user.get("role"),
+                "action": "create_apartment",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "details": {**data, 'id': doc_ref.id},
+                'status': 'fail',
+                'error': str(e)
+            })
+            return make_cors_response(jsonify({'error': str(e)}), 409)
 
     elif request.method == 'GET':
         apartments = db.collection('apartments').stream()

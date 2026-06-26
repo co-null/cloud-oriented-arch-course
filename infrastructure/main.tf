@@ -188,6 +188,37 @@ resource "google_cloudfunctions_function_iam_member" "bookings_api_invoker" {
   member         = "allUsers"
 }
 
+# Події з топіку
+# Завантаження останніх подій з топіку
+resource "google_storage_bucket_object" "messages_function_zip" {
+  name   = "messages.zip"
+  bucket = google_storage_bucket.function_bucket.name
+  source = "${path.module}/../src/cloud-functions/messages/messages.zip"
+}
+
+resource "google_cloudfunctions_function" "messages_api" {
+  name        = "messages"
+  description = "Endpoint for messages"
+  runtime     = "python310"
+  entry_point = "main"
+  trigger_http = true
+  available_memory_mb = 128
+
+  source_archive_bucket = google_storage_bucket.function_bucket.name
+  source_archive_object = google_storage_bucket_object.messages_function_zip.name
+
+  ingress_settings = "ALLOW_ALL"
+  https_trigger_security_level = "SECURE_ALWAYS"
+}
+
+resource "google_cloudfunctions_function_iam_member" "messages_api_invoker" {
+  project        = var.project_id
+  region         = var.region
+  cloud_function = google_cloudfunctions_function.messages_api.name
+  role           = "roles/cloudfunctions.invoker"
+  member         = "allUsers"
+}
+
 # Вивід URL для bucket
 output "static_site_url" {
   description = "URL для доступу до статичного сайту"
