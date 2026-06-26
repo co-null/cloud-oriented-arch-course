@@ -10,7 +10,9 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-TOPIC_NAME = "booking-events"
+# Вичитаємо env variables
+project_id = os.environ.get('GCP_PROJECT')
+TOPIC_NAME = os.environ.get('PUBSUB_TOPIC')
 
 # Ініціалізація Firestore
 cred = credentials.ApplicationDefault()
@@ -19,7 +21,6 @@ db = firestore.client()
 
 # Ініціалізація Pub/Sub клієнтів
 publisher = pubsub_v1.PublisherClient()
-project_id = os.environ.get('GCP_PROJECT', os.environ.get('GOOGLE_CLOUD_PROJECT'))
 
 app = Flask(__name__)
 

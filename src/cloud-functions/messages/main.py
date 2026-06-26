@@ -8,15 +8,16 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-TOPIC_NAME = "booking-events"
+project_id = os.environ.get('GCP_PROJECT')
+TOPIC_NAME = os.environ.get('PUBSUB_TOPIC')
+PUBSUB_SUBSCRIPTION_NAME = os.environ.get('PUBSUB_SUBSCRIPTION')
 
 # Ініціалізація Pub/Sub клієнтів
-project_id = os.environ.get('GCP_PROJECT', os.environ.get('GOOGLE_CLOUD_PROJECT'))
 subscriber = pubsub_v1.SubscriberClient()
 
 app = Flask(__name__)
 
-def ensure_subscription_exists(topic_name, subscription_name):
+def ensure_subscription_exists(topic_name, subscription_name = PUBSUB_SUBSCRIPTION_NAME):
     """Створює підписку, якщо вона не існує"""
     topic_path = f"projects/{project_id}/topics/{topic_name}"
     subscription_path = subscriber.subscription_path(project_id, subscription_name)

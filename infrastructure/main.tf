@@ -145,6 +145,18 @@ resource "google_cloudfunctions_function" "apartments_api" {
   source_archive_bucket = google_storage_bucket.function_bucket.name
   source_archive_object = google_storage_bucket_object.apartments_function_zip.name
 
+  service_account_email = google_service_account.pubsub_function_sa.email
+
+  environment_variables = {
+    GCP_PROJECT = var.project_id
+    PUBSUB_TOPIC = google_pubsub_topic.main_topic.name
+  }
+
+  depends_on = [
+    google_service_account.pubsub_function_sa,
+    google_pubsub_topic.main_topic
+  ]
+
   ingress_settings = "ALLOW_ALL"
   https_trigger_security_level = "SECURE_ALWAYS"
 }
@@ -175,6 +187,18 @@ resource "google_cloudfunctions_function" "bookings_api" {
 
   source_archive_bucket = google_storage_bucket.function_bucket.name
   source_archive_object = google_storage_bucket_object.bookings_function_zip.name
+
+  service_account_email = google_service_account.pubsub_function_sa.email
+
+  environment_variables = {
+    GCP_PROJECT = var.project_id
+    PUBSUB_TOPIC = google_pubsub_topic.main_topic.name
+  }
+
+  depends_on = [
+    google_service_account.pubsub_function_sa,
+    google_pubsub_topic.main_topic
+  ]
 
   ingress_settings = "ALLOW_ALL"
   https_trigger_security_level = "SECURE_ALWAYS"
@@ -207,6 +231,20 @@ resource "google_cloudfunctions_function" "messages_api" {
   source_archive_bucket = google_storage_bucket.function_bucket.name
   source_archive_object = google_storage_bucket_object.messages_function_zip.name
 
+  service_account_email = google_service_account.pubsub_function_sa.email
+
+  environment_variables = {
+    GCP_PROJECT = var.project_id
+    PUBSUB_TOPIC = google_pubsub_topic.main_topic.name
+    PUBSUB_SUBSCRIPTION = google_pubsub_subscription.main_subscription.name
+  }
+
+  depends_on = [
+    google_service_account.pubsub_function_sa,
+    google_pubsub_topic.main_topic,
+    google_pubsub_subscription.main_subscription
+  ]
+
   ingress_settings = "ALLOW_ALL"
   https_trigger_security_level = "SECURE_ALWAYS"
 }
@@ -223,6 +261,23 @@ resource "google_cloudfunctions_function_iam_member" "messages_api_invoker" {
 resource "google_project_service" "pubsub_api" {
   project = var.project_id
   service = "pubsub.googleapis.com"
+  
+  disable_dependent_services = false
+  disable_on_destroy         = false
+}
+
+resource "google_project_service" "cloudfunctions_api" {
+  project = var.project_id
+  service = "cloudfunctions.googleapis.com"
+  
+  disable_dependent_services = false
+  disable_on
+_destroy         = false
+}
+
+resource "google_project_service" "iam_api" {
+  project = var.project_id
+  service = "iam.googleapis.com"
   
   disable_dependent_services = false
   disable_on_destroy         = false
@@ -361,6 +416,27 @@ resource "google_project_iam_member" "function_sa_monitoring" {
 resource "google_project_iam_member" "function_sa_topic_admin" {
   project = var.project_id
   role    = "roles/pubsub.editor"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+# Права для всіх Cloud Functions на використання Service Account
+resource "google_service_account_iam_member" "functions_sa_user" {
+  service_account_id = google_service_account.pubsub_function_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.project_id}@appspot.gserviceaccount.com"
+}
+
+# Додаткові права для функцій
+resource "google_project_iam_member" "function_sa_token_creator" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountTokenCreator"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+# Права на створення підписок
+resource "google_project_iam_member" "function_sa_subscription_admin" {
+  project = var.project_id
+  role    = "roles/pubsub.admin"
   member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
 }
 
