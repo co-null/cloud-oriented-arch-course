@@ -196,10 +196,11 @@ def create_booking(user_id):
             new_id = str(uuid.uuid4())
             doc_ref = bookings_ref.document(new_id)
             transaction.set(doc_ref, booking_data)
-
+            return new_id, booking_data
+        
         try:
             transaction = db.transaction()
-            transaction_func(transaction)
+            booking_id, booking_data = transaction_func(transaction)
 
             # Публікація події в Pub/Sub
             message_id = add_message_to_topic({
