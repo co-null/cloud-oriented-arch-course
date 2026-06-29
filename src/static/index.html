@@ -39,8 +39,20 @@
     </section>
 
     <section class="intro">
-      <h2>Тут буде текст</h2>
-      <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed euismod, urna eu tincidunt consectetur, nisi nisl aliquam nunc, vitae egestas enim mi nec quam.</p>
+      <!-- Блок для виводу останніх подій -->
+      <div class="events-block" style="max-width:800px;margin:2em auto;padding:1em;border:1px solid #ddd;border-radius:8px;background-color:#f9f9f9;">
+        <h3>Останні події системи</h3>
+        <div style="margin-bottom:1em;">
+          <button id="loadEventsBtn" style="padding:0.5em 1em;background-color:#007bff;color:white;border:none;border-radius:4px;cursor:pointer;">
+            Отримати події за останні 30 хв
+          </button>
+          <span id="eventsLoading" style="margin-left:1em;display:none;color:#666;">Завантаження...</span>
+        </div>
+        <div id="eventsContainer" style="max-height:400px;overflow-y:auto;border:1px solid #ccc;border-radius:4px;background-color:white;padding:1em;">
+          <p style="color:#666;text-align:center;">Натисніть кнопку для завантаження подій</p>
+        </div>
+        <div id="eventsStats" style="margin-top:1em;font-size:0.9em;color:#666;"></div>
+      </div>    
     </section>
     <section class="features">
       <div class="feature">
@@ -330,6 +342,213 @@ document.getElementById('apartmentsList').addEventListener('click', async functi
       if (res.ok) {alert('Бронювання успішно створено!');} 
       else {alert('Помилка: ' + (data.error || data.message || 'Невідома помилка'));}
     } catch (err) {alert('Помилка мережі: ' + err.message);}}
+});
+
+// Обробка кліку на кнопку завантаження подій
+const MESSAGES_URL = "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/messages";
+
+document.getElementById('loadEventsBtn').addEventListener('click', async function() {
+  const idToken = await getIdToken();
+  if (!idToken) {
+    alert('Ви не авторизовані!');
+    return;
+  }
+
+  const loadingSpan = document.getElementById('eventsLoading');
+  const eventsContainer = document.getElementById('eventsContainer');
+  const eventsStats = document.getElementById('eventsStats');
+  const loadBtn = document.getElementById('loadEventsBtn');
+
+  // Показати індикатор завантаження
+  loadingSpan.style.display = 'inline';
+  load
+Btn.disabled = true;
+  eventsContainer.innerHTML = '<p style="text-align:center;color:#666;">Завантаження подій...</p>';
+
+  try {
+    const response = await fetch(MESSAGES_URL, {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer ' + idToken,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      displayEvents(data);
+    } else {
+      eventsContainer.innerHTML = `
+        <div style="color:#dc3545;text-align:center;padding:1em;">
+          <strong>Помилка:</strong> ${data.detail || data.error || 'Не вдалося завантажити події'}
+        </div>
+      `;
+    }
+  } catch (error) {
+    console.error('Error loading events:', error);
+    eventsContainer.innerHTML = `
+      <div style="color:#dc3545;text-align:center;padding:1em;">
+        <strong>Помилка мережі:</strong> ${error.message}
+      </div>
+    `;
+  } finally {
+    // Приховати індикатор завантаження
+    loadingSpan.style.display = 'none';
+    loadBtn.disabled = false;
+  }
+});
+
+// Функція для відображення подій
+function displayEvents(data) {
+  const eventsContainer = document.getElementById('eventsContainer');
+  const eventsStats = document.getElementById('eventsStats');
+  
+  // Оновлення статистики
+  eventsStats.innerHTML = `
+    Знайдено <strong>${data.message_count}</strong> подій за останні ${data.time_range_minutes} хвилин. 
+    Останнє оновлення: ${new Date(data.timestamp).toLocaleString('uk-UA')}
+  `;
+
+  if (data.messages && data.messages.length > 0) {
+    // Сортування подій за часом (найновіші спочатку)
+    const sortedMessages = data.messages.sort((a, b) => 
+      new Date(b.publish_time) - new Date(a.publish_time)
+    );
+
+    const eventsHtml = sortedMessages.map(message => {
+      const publishTime = new Date(message.publish_time);
+      const timeAgo = getTimeAgo(publishTime);
+      
+      // Визначення типу події для кольорового кодування
+      const eventType = message.attributes?.event_type || message.data?.event || 'unknown';
+      const eventColor = getEventColor(eventType);
+      
+      return `
+        <div style="border-left:4px solid ${eventColor};margin-bottom:1em;padding:0.75em;background-color:#f8f9fa;border-radius:0 4px 4px 0;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5em;">
+            <span style="font-weight:bold;color:${eventColor};">
+              ${formatEventType(eventType)}
+            </span>
+            <span style="font-size:0.85em;color:#666;">
+              ${timeAgo}
+            </span>
+          </div>
+          
+          <div style="font-size:0.9em;margin-bottom:0.5em;">
+            <strong>Дані:</strong>
+            <pre style="background-color:white;padding:0.5em;border-radius:3px;margin:0.25em 0;font-size:0.85em;overflow-x:auto;">${JSON.stringify(message.data, null, 2)}</pre>
+          </div>
+          
+          ${Object.keys(message.attributes).length > 0 ? `
+            <div style="font-size:0.85em;">
+              <strong>Атрибути:</strong>
+              ${Object.entries(message.attributes).map(([key, value]) => 
+                `<span style="background-color:#e9ecef;padding:0.2em 0.4em;margin:0.2em;border-radius:3px;display:inline-block;">${key}: ${value}</span>`
+              ).join('')}
+            </div>
+          ` : ''}
+          
+          <div style="font-size:0.8em;color:#666;margin-top:0.5em;">
+            ID: ${message.message_id}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    eventsContainer.innerHTML = eventsHtml;
+  } else {
+    eventsContainer.innerHTML = `
+      <div style="text-align:center;padding:2em;color:#666;">
+        
+<p>Подій за останні ${data.time_range_minutes} хвилин не знайдено</p>
+        <p style="font-size:0.9em;">Спробуйте створити бронювання або додати квартиру для генерації подій</p>
+      </div>
+    `;
+  }
+}
+
+// Функція для визначення кольору події
+function getEventColor(eventType) {
+  const colors = {
+    'booking_created': '#28a745',
+    'apartment_added': '#007bff', 
+    'user_action': '#ffc107',
+    'error': '#dc3545',
+    'unknown': '#6c757d'
+  };
+  return colors[eventType] || colors['unknown'];
+}
+
+// Функція для форматування типу події
+function formatEventType(eventType) {
+  const types = {
+    'booking_created': '🏠 Створено бронювання',
+    'apartment_added': '🏢 Додано квартиру',
+    'user_action': '👤 Дія користувача',
+    'error': '❌ Помилка',
+    'unknown': '❓ Невідома подія'
+  };
+  return types[eventType] || `📝 ${eventType}`;
+}
+
+// Функція для розрахунку часу, що минув
+function getTimeAgo(date) {
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  
+  if (diffMins < 1) return 'щойно';
+  if (diffMins < 60) return `${diffMins} хв тому`;
+  if (diffHours < 24) return `${diffHours} год тому`;
+  return date.toLocaleDateString('uk-UA');
+}
+
+// Автоматичне оновлення подій кожні 2 хвилини (опціонально)
+let autoRefreshInterval = null;
+
+function startAutoRefresh() {
+  if (autoRefreshInterval) return;
+  
+  autoRefreshInterval = setInterval(async () => {
+    const idToken = await getIdToken();
+    if (idToken && document.getElementById('eventsContainer').innerHTML !== '<p style="color:#666;text-align:center;">Натисніть кнопку для завантаження подій</p>') {
+      // Тихе оновлення без показу індикатора завантаження
+      try {
+        const response = await fetch(MESSAGES_URL, {
+          method: 'GET',
+          headers: {
+            'Authorization': 'Bearer ' + idToken,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const data = await response.json();
+        if (response.ok && data.success) {
+          displayEvents(data);
+        }
+      } catch (error) {
+        console.log('Auto-refresh failed:', error);
+      }
+    }
+  }, 120000); // 2 хвилини
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshInterval) {
+    clearInterval(autoRefreshInterval);
+    autoRefreshInterval = null;
+  }
+}
+
+// Запуск автооновлення при авторизації
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    startAutoRefresh();
+  } else {
+    stopAutoRefresh();
+  }
 });
 
 </script>

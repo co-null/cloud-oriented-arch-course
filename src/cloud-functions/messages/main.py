@@ -1,3 +1,5 @@
+from email.mime import message
+
 from flask import Flask, request, jsonify, make_response
 from datetime import datetime, timedelta, timezone
 import os, requests, logging, json
@@ -52,62 +54,81 @@ def get_recent_messages(topic_name, minutes=30):
     """
     Отримання повідомлень за останній період часу (30 хвилин за замовчуванням) з топіку Pub/Sub.
     """
-     
+
     try:
-        # Створення тимчасової підписки з фільтром за часом
-        subscription_name = f"{topic_name}-recent-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
-        subscription_path = ensure_subscription_exists(topic_name, subscription_name)
+        if not topic_name:
+            raise ValueError("Topic name is required")
+        
+        # Використання основної підписки 
+        subscription_path = ensure_subscription_exists(topic_name)
         
         # Розрахунок часового діапазону
         cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+        logger.info(f"Looking for messages after {cutoff_time}")
         
         messages = []
         ack_ids = []
-        
-        # Отримання повідомлень з фільтрацією за часом
-        response = subscriber.pull(
-            request={
-                "subscription": subscription_path,
-                "max_messages": 100
-            },
-            timeout=10
-        )
-        
-        for received_message in response.received_messages:
-            message = received_message.message
-            
-            # Фільтрація за часом публікації
-            if message.publish_time.replace(tzinfo=timezone.utc) >= cutoff_time:
-                try:
-                    message_data = json.loads(message.data.decode('utf-8'))
-                except json.JSONDecodeError:
-                    message_data = message.data.decode('utf-8')
-                
-                message_info = {
-                    'message_id': message.message_id,
-                    'data': message_data,
-                    'attributes': dict(message.attributes),
-                    'publish_time': message.publish_time.isoformat()
-                }
-                
-                messages.append(message_info)
-            
-            ack_ids.append(received_message.ack_id)
-        
-        # Підтвердження всіх повідомлень
-        if ack_ids:
-            subscriber.acknowledge(
+
+        # Отримання повідомлень
+        try:
+            response = subscriber.pull(
                 request={
                     "subscription": subscription_path,
-                    "ack_ids": ack_ids
-                }
+                    "max_messages": 100
+                },
+                timeout=10
             )
-        
-        # Видалення тимчасової підписки
-        try:
-            subscriber.delete_subscription(request={"subscription": subscription_path})
+            
+            logger.info(f"Pulled {len(response.received_messages)} messages from subscription")
+            for received_message in response.received_messages:
+                message = received_message.message
+                
+                # Конвертація publish_time до UTC якщо потрібно
+                publish_time = message.publish_time
+                if publish_time.tzinfo is None:
+                    publish_time = publish_time.replace(tzinfo=timezone.utc)
+                
+                # Фільтрація за часом публікації
+                if publish_time >= cutoff_time:
+                    try:
+                        # Спроба декодувати JSON
+                        message_data = json.loads(message.data.decode('utf-8'))
+                    except json.JSONDecodeError:
+                        # Якщо не JSON, зберігаємо як текст
+                        message_data = message.data.decode('utf-8')
+                    except UnicodeDecodeError:
+                        # Якщо не можемо декодувати як UTF-8
+                        message_data = str(message.data)
+                    
+                    message_info = {
+                        'message_id': message.message_id,
+                        'data': message_data,
+                        'attributes': dict(message.attributes),
+                        'publish_time': publish_time.isoformat()
+                    }
+                    
+                    messages.append(message_info)
+                    logger.info(f"Added message {message.message_id} published at {publish_time}")
+                
+                else:
+                    logger.info(f"Skipping old message {message.message_id} published at {publish_time}")
+                
+                # Збираємо всі ack_ids для підтвердження
+                ack_ids.append(received_message.ack_id)
+            
+            # Підтвердження всіх повідомлень (навіть тих, що не пройшли фільтр)
+            if ack_ids:
+                subscriber.acknowledge(
+                    request={
+                        "subscription": subscription_path,
+                        "ack_ids": ack_ids
+                    }
+                )
+                logger.info(f"Acknowledged {len(ack_ids)} messages")
+            
         except Exception as e:
-            logger.warning(f"Could not delete temporary subscription: {e}")
+            logger.error(f"Error pulling messages: {e}")
+            raise
         
         response_data = {
             'success': True,
@@ -118,11 +139,20 @@ def get_recent_messages(topic_name, minutes=30):
             'timestamp': datetime.now(timezone.utc).isoformat()
         }
         
+        logger.info(f"Returning {len(messages)} recent messages")
         return response_data
         
     except Exception as e:
         logger.error(f"Error in get_recent_messages: {e}")
-        return None
+        return {
+            'success': False,
+            'error': str(e),
+            'topic': topic_name,
+            'time_range_minutes': minutes,
+            'message_count': 0,
+            'messages': [],
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }
 
 def make_cors_response(response, status=200):
     resp = make_response(response, status)
@@ -156,7 +186,11 @@ def messages():
     
     if request.method == 'GET':
         result = get_recent_messages(topic_name=TOPIC_NAME)
-        return make_cors_response(jsonify(result), 200)
+        if result.get('success'):
+            return make_cors_response(jsonify(result), 200)
+        else:
+            return make_cors_response(jsonify(result), 500)
+        
     
 def main(request):
     with app.request_context(request.environ):
