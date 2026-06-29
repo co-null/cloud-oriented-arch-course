@@ -440,15 +440,6 @@ function displayEvents(data) {
             <pre style="background-color:white;padding:0.5em;border-radius:3px;margin:0.25em 0;font-size:0.85em;overflow-x:auto;">${JSON.stringify(message.data, null, 2)}</pre>
           </div>
           
-          ${Object.keys(message.attributes).length > 0 ? `
-            <div style="font-size:0.85em;">
-              <strong>Атрибути:</strong>
-              ${Object.entries(message.attributes).map(([key, value]) => 
-                `<span style="background-color:#e9ecef;padding:0.2em 0.4em;margin:0.2em;border-radius:3px;display:inline-block;">${key}: ${value}</span>`
-              ).join('')}
-            </div>
-          ` : ''}
-          
           <div style="font-size:0.8em;color:#666;margin-top:0.5em;">
             ID: ${message.message_id}
           </div>
