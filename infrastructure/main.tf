@@ -513,7 +513,7 @@ resource "google_cloudfunctions_function" "pubsub_dispatcher" {
   # Gen 1 нативний Pub/Sub тригер
   event_trigger {
     event_type = "google.pubsub.topic.publish"   # Gen 1 синтаксис
-    resource   = data.google_pubsub_topic.main_topic.id
+    resource   = google_pubsub_topic.main_topic.id
 
     failure_policy {
       retry = true  # При RuntimeError — Pub/Sub автоматично повторить доставку
