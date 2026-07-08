@@ -27,7 +27,6 @@ if not firebase_admin._apps:
         logger.error(f"Failed to initialize Firebase Admin SDK: {e}")
         raise
 
-# Ініціалізація Firestore
 try:
     db = firestore.client()
     logger.info("Firestore client initialized successfully")

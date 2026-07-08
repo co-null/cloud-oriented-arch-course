@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; }
+    .header { background: #2E86C1; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+    .body { background: #f9f9f9; padding: 20px; }
+    .booking-details { background: white; border: 1px solid #ddd; border-radius: 6px; padding: 16px; margin: 16px 0; }
+    .price { font-size: 22px; color: #2E86C1; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>✅ Бронювання підтверджено</h2>
+  </div>
+  <div class="body">
+    <p>Вітаємо, <strong>{{ user_id }}</strong>!</p>
+    <div class="booking-details">
+      <p><strong>Номер бронювання:</strong> {{ booking_id }}</p>
+      <p><strong>Квартира:</strong> {{ apartment_id }}</p>
+      <p><strong>Заїзд:</strong> {{ start_date }}</p>
+      <p><strong>Виїзд:</strong> {{ end_date }}</p>
+      <p class="price">Сума: {{ price }} UAH</p>
+    </div>
+    <p>З повагою,<br>Команда ApartmentBooking</p>
+  </div>
+</body>
+</html>

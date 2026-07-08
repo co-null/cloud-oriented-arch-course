@@ -22,3 +22,13 @@ variable "topic_name" {
   description = "Топік для подій додавання квартир і бронювань"
   type        = string
 }
+
+variable "admin_email" {
+  description = "Email адміністратора для системних сповіщень"
+  type        = string
+}
+
+variable "alert_email" {
+  description = "Email для отримання алертів команди"
+  type        = string
+}

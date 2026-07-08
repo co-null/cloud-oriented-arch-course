@@ -4,38 +4,47 @@ provider "google" {
   region  = var.region
 }
 
-# Тут буде блок для використовуваних сервісів
-resource "google_project_service" "firestore_api" {
-  project = var.project_id
-  service = "firestore.googleapis.com"
-  
-  disable_dependent_services = false
-  disable_on_destroy         = false
+# 
+# АКТИВАЦІЯ GCP API
+#
+# GCP за замовчуванням вимикає більшість API у новому проєкті.
+# Terraform активує їх автоматично перед деплоєм ресурсів.
+#
+# disable_on_destroy = false означає, що при знищенні інфраструктури
+# через `terraform destroy` API залишаться увімкненими. Це безпечніше,
+# ніж їх вимикати — інші ресурси в проєкті можуть від них залежати.
+# 
+resource "google_project_service" "apis" {
+  for_each = toset([
+# Cloud Functions Gen 1 — основний сервіс деплою функцій
+    "cloudfunctions.googleapis.com",
+
+    # Pub/Sub — черга подій; топік apartment-events вже існує з попередньої теми
+    "pubsub.googleapis.com",
+
+    # IAM - сервіс ролей доступу
+    "iam.googleapis.com",
+
+    # Secret Manager — захищене зберігання MAILGUN_API_KEY та MAILGUN_DOMAIN
+    "secretmanager.googleapis.com",
+
+    # Cloud Build — збірка та деплой коду функцій з GCS
+    "cloudbuild.googleapis.com",
+
+    # Firestore — idempotency store для захисту від дублювання листів
+    "firestore.googleapis.com",
+
+    # Cloud Monitoring — метрики та алерти
+    "monitoring.googleapis.com",
+
+    # Cloud Logging — структуроване логування функцій
+    "logging.googleapis.com"
+  ])
+
+  service            = each.key
+  disable_on_destroy = false
 }
 
-resource "google_project_service" "pubsub_api" {
-  project = var.project_id
-  service = "pubsub.googleapis.com"
-  
-  disable_dependent_services = false
-  disable_on_destroy         = false
-}
-
-resource "google_project_service" "cloudfunctions_api" {
-  project = var.project_id
-  service = "cloudfunctions.googleapis.com"
-  
-  disable_dependent_services = false
-  disable_on_destroy         = false
-}
-
-resource "google_project_service" "iam_api" {
-  project = var.project_id
-  service = "iam.googleapis.com"
-  
-  disable_dependent_services = false
-  disable_on_destroy         = false
-}
 
 # Блок для роботи з сервісними акаунтами
 # Права для роботи з Firestore
@@ -104,6 +113,28 @@ resource "google_project_iam_member" "function_sa_subscription_admin" {
   project = var.project_id
   role    = "roles/pubsub.admin"
   member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+# IAM права  для Dispatcher
+# dispatcher: запис логів
+resource "google_project_iam_member" "dispatcher_log_writer" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.dispatcher_sa.email}"
+}
+
+# dispatcher: запис метрик
+resource "google_project_iam_member" "dispatcher_metric_writer" {
+  project = var.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.dispatcher_sa.email}"
+}
+
+# dispatcher: Firestore для idempotency store
+resource "google_project_iam_member" "dispatcher_firestore" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.dispatcher_sa.email}"
 }
 
 
@@ -363,6 +394,92 @@ resource "google_cloudfunctions_function_iam_member" "messages_api_invoker" {
   member         = "allUsers"
 }
 
+# Диспетчер
+# Завантаження (копіювання/оновлення) функції (як архіву) для dispatcher з локальної директорії у bucket для функції
+resource "google_storage_bucket_object" "dispatcher_function_zip" {
+  name   = "dispatcher.zip"
+  bucket = google_storage_bucket.function_bucket.name
+  source = "${path.module}/../src/cloud-functions/dispatcher/dispatcher.zip"
+}
+
+resource "google_cloudfunctions_function" "pubsub_dispatcher" {
+  name        = "pubsub_dispatcher"
+  description = "Підписується на booking-events та викликає send_email по REST"
+  runtime     = "python310"
+  entry_point = "main"
+  trigger_http = true
+  available_memory_mb = 256
+  timeout = 60
+
+  source_archive_bucket = google_storage_bucket.function_bucket.name
+  source_archive_object = google_storage_bucket_object.bookings_function_zip.name
+  service_account_email = google_service_account.dispatcher_sa.email
+
+  # Gen 1 нативний Pub/Sub тригер
+  event_trigger {
+    event_type = "google.pubsub.topic.publish"   # Gen 1 синтаксис
+    resource   = data.google_pubsub_topic.main_topic.id
+
+    failure_policy {
+      retry = true  # При RuntimeError — Pub/Sub автоматично повторить доставку
+    }
+  }
+
+  environment_variables = {
+    GCP_PROJECT      = var.project_id
+    EMAIL_SENDER_URL = google_cloudfunctions_function.send_email.https_trigger_url
+    ADMIN_EMAIL      = var.admin_email
+    PUBSUB_TOPIC = google_pubsub_topic.main_topic.name
+  }
+
+  depends_on = [
+    google_project_service.apis,
+    google_cloudfunctions_function.send_email,
+    google_cloudfunctions_function_iam_member.dispatcher_invokes_sender,
+    google_project_iam_member.dispatcher_firestore,
+    google_pubsub_topic.main_topic
+  ]
+}
+
+# dlq-handler
+# Завантаження (копіювання/оновлення) функції (як архіву) для dlq-handler з локальної директорії у bucket для функції
+resource "google_storage_bucket_object" "dlq_handler_function_zip" {
+  name   = "dlq_handler.zip"
+  bucket = google_storage_bucket.function_bucket.name
+  source = "${path.module}/../src/cloud-functions/dlq_handler/dlq_handler.zip"
+}
+
+resource "google_cloudfunctions_function" "dlq_handler" {
+  name        = "dlq_handler"
+  description = "Логує повідомлення з Dead Letter Queue та відправляє алерти"
+  runtime     = "python310"
+  entry_point = "main"
+  available_memory_mb = 128
+  timeout = 60
+
+  source_archive_bucket = google_storage_bucket.function_bucket.name
+  source_archive_object = google_storage_bucket_object.dlq_handler_function_zip.name
+  service_account_email = google_service_account.dispatcher_sa.email
+
+  # Gen 1 нативний Pub/Sub тригер
+  event_trigger {
+    event_type = "google.pubsub.topic.publish"
+    resource   = google_pubsub_topic.notification_dlq.id
+
+    failure_policy {
+      retry = false  # DLQ не ретраїмо — лише логуємо
+    }
+  }
+
+  environment_variables = {
+    GCP_PROJECT      = var.project_id
+  }
+
+  depends_on = [
+    google_project_service.apis,
+    google_pubsub_topic.notification_dlq
+}
+
 # Додання брокера Pub-Sub
 # Основний топік для повідомлень
 resource "google_pubsub_topic" "main_topic" {
@@ -373,6 +490,21 @@ resource "google_pubsub_topic" "main_topic" {
   message_retention_duration = "604800s" # 7 днів
   
   depends_on = [google_project_service.pubsub_api]
+}
+
+# DLQ топік
+resource "google_pubsub_topic" "notification_dlq" {
+  name       = "notification-dlq"
+  depends_on = [google_project_service.apis]
+  message_retention_duration = "604800s"  # 7 днів
+}
+
+# Pub/Sub сервісний агент повинен мати право публікувати в DLQ
+# ВАЖЛИВО: цей ресурс має існувати ДО створення підписки з DLQ-політикою
+resource "google_pubsub_topic_iam_member" "pubsub_dlq_publisher" {
+  topic  = google_pubsub_topic.notification_dlq.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${local.pubsub_sa}"
 }
 
 # Основна підписка
@@ -404,6 +536,32 @@ resource "google_pubsub_subscription" "main_subscription" {
   ]
 }
 
+# DLQ ПІДПИСКА
+# Окрема підписка з dead_letter_policy на основному топіку. 
+# Gen 1 тригер dispatcher використовує власну автоматичну підписку,
+# а ця підписка — виключно для DLQ-маршрутизації.
+
+resource "google_pubsub_subscription" "dispatcher_sub_dlq" {
+  name  = "dispatcher-sub-with-dlq"
+  topic = google_pubsub_topic.main_topic.name
+
+  ack_deadline_seconds = 30
+
+  dead_letter_policy {
+    dead_letter_topic     = google_pubsub_topic.notification_dlq.id
+    max_delivery_attempts = 5
+  }
+
+  # ВАЖЛИВО: IAM на DLQ топік має існувати ДО створення підписки
+  depends_on = [google_pubsub_topic_iam_member.pubsub_dlq_publisher]
+}
+
+resource "google_pubsub_subscription_iam_member" "pubsub_acks_main_sub" {
+  subscription = google_pubsub_subscription.dispatcher_sub_dlq.name
+  role         = "roles/pubsub.subscriber"
+  member       = "serviceAccount:${local.pubsub_sa}"
+}
+
 # Service Account для Cloud Functions
 resource "google_service_account" "pubsub_function_sa" {
   account_id   = "pubsub-function-sa"
@@ -427,6 +585,13 @@ resource "google_service_account" "pubsub_subscriber_sa" {
   description  = "Service account for subscribing to Pub/Sub messages"
   project      = var.project_id
 }
+
+# Service Account для Dispatcher
+resource "google_service_account" "dispatcher_sa" {
+  account_id   = "pubsub-dispatcher-sa"
+  display_name = "Pub/Sub Dispatcher Function SA"
+}
+
 
 # IAM bindings для топіків
 resource "google_pubsub_topic_iam_binding" "publisher_binding" {
@@ -472,6 +637,65 @@ resource "google_pubsub_subscription_iam_binding" "viewer_subscription_binding" 
     "serviceAccount:${google_service_account.pubsub_function_sa.email}",
     "serviceAccount:${google_service_account.pubsub_subscriber_sa.email}"
   ]
+}
+
+# МОНІТОРИНГ ТА АЛЕРТИ
+resource "google_monitoring_notification_channel" "team_email" {
+  display_name = "Team Email Alerts"
+  type         = "email"
+  labels       = { email_address = var.alert_email }
+}
+
+resource "google_monitoring_alert_policy" "dlq_non_empty" {
+  display_name = "🚨 Notification DLQ: є необроблені повідомлення"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "DLQ received messages"
+    condition_threshold {
+      filter          = "resource.type=\"pubsub_topic\" AND resource.labels.topic_id=\"notification-dlq\" AND metric.type=\"pubsub.googleapis.com/topic/send_message_operation_count\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "60s"
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_SUM"
+      }
+    }
+  }
+
+  alert_strategy {
+    notification_rate_limit { period = "3600s" }
+  }
+
+  notification_channels = [google_monitoring_notification_channel.team_email.name]
+
+  documentation {
+    content   = "Повідомлення не вдалося обробити після 5 спроб. Перевірте логи pubsub-dispatcher та стан email-sender функції."
+    mime_type = "text/markdown"
+  }
+}
+
+resource "google_monitoring_alert_policy" "dispatcher_errors" {
+  display_name = "⚠️ pubsub-dispatcher: помилки виконання"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Function execution errors"
+    condition_threshold {
+      # У Gen 1 метрика помилок — через Cloud Functions, не Cloud Run
+      filter          = "resource.type=\"cloud_function\" AND resource.labels.function_name=\"pubsub-dispatcher\" AND metric.type=\"cloudfunctions.googleapis.com/function/execution_count\" AND metric.labels.status=\"error\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 5
+      duration        = "300s"
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_RATE"
+      }
+    }
+  }
+
+  notification_channels = [google_monitoring_notification_channel.team_email.name]
 }
 
 # Вивід URL для bucket
