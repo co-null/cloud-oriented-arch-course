@@ -448,7 +448,6 @@ resource "google_cloudfunctions_function" "pubsub_dispatcher" {
   depends_on = [
     google_project_service.apis,
     google_cloudfunctions_function.send_email,
-    google_cloudfunctions_function_iam_member.dispatcher_invokes_sender,
     google_project_iam_member.dispatcher_firestore,
     google_pubsub_topic.main_topic
   ]
