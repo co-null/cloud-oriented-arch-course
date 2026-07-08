@@ -421,7 +421,7 @@ function displayEvents(data) {
       const timeAgo = getTimeAgo(publishTime);
       
       // Визначення типу події для кольорового кодування
-      const eventType = message.attributes?.event_type || message.data?.event || 'unknown';
+      const eventType = message.attributes?.event_type || message.data?.event_type || 'unknown';
       const eventColor = getEventColor(eventType);
       
       return `
