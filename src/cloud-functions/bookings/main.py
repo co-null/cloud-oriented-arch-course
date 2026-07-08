@@ -207,6 +207,7 @@ def create_booking(user_id):
 
             # Публікація події в Pub/Sub
             booking_data['event_type'] = 'booking_created'
+            booking_data['booking_id'] = booking_id
             message_id = add_message_to_topic(booking_data)
 
             # Логування успішної спроби
