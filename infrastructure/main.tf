@@ -677,7 +677,15 @@ resource "google_monitoring_alert_policy" "dlq_non_empty" {
   }
 
   alert_strategy {
-    notification_rate_limit { period = "3600s" }
+    # Автоматично закриває інцидент якщо метрика зникла (наприклад, DLQ спорожнів)
+    # і нових повідомлень не надходить протягом 24 годин
+    auto_close = "86400s"
+
+    # Повторне сповіщення кожні 4 години поки інцидент залишається відкритим
+    notification_channel_strategy {
+      notification_channel_names = [google_monitoring_notification_channel.team_email.name]
+      renotify_interval          = "14400s"
+    }
   }
 
   notification_channels = [google_monitoring_notification_channel.team_email.name]
@@ -695,7 +703,6 @@ resource "google_monitoring_alert_policy" "dispatcher_errors" {
   conditions {
     display_name = "Function execution errors"
     condition_threshold {
-      # У Gen 1 метрика помилок — через Cloud Functions, не Cloud Run
       filter          = "resource.type=\"cloud_function\" AND resource.labels.function_name=\"pubsub-dispatcher\" AND metric.type=\"cloudfunctions.googleapis.com/function/execution_count\" AND metric.labels.status=\"error\""
       comparison      = "COMPARISON_GT"
       threshold_value = 5
@@ -704,6 +711,15 @@ resource "google_monitoring_alert_policy" "dispatcher_errors" {
         alignment_period   = "300s"
         per_series_aligner = "ALIGN_RATE"
       }
+    }
+  }
+
+  alert_strategy {
+    auto_close = "86400s"
+
+    notification_channel_strategy {
+      notification_channel_names = [google_monitoring_notification_channel.team_email.name]
+      renotify_interval          = "3600s"  # Нагадування щогодини
     }
   }
 
