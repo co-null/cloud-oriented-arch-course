@@ -519,7 +519,7 @@ resource "google_pubsub_topic" "notification_dlq" {
 resource "google_pubsub_topic_iam_member" "pubsub_dlq_publisher" {
   topic  = google_pubsub_topic.notification_dlq.name
   role   = "roles/pubsub.publisher"
-  member = "serviceAccount:${local.pubsub_sa}"
+  member = google_project_service_identity.pubsub_agent.member
 }
 
 # Основна підписка
@@ -574,7 +574,7 @@ resource "google_pubsub_subscription" "dispatcher_sub_dlq" {
 resource "google_pubsub_subscription_iam_member" "pubsub_acks_main_sub" {
   subscription = google_pubsub_subscription.dispatcher_sub_dlq.name
   role         = "roles/pubsub.subscriber"
-  member       = "serviceAccount:${local.pubsub_sa}"
+  member       = google_project_service_identity.pubsub_agent.member
 }
 
 # Service Account для Cloud Functions
