@@ -95,6 +95,8 @@ def _dispatch_apartment_added(event: dict, event_id: str):
             f"Додано нову квартиру.\n"
             f"ID: {event.get('apartment_id')}\n"
             f"Адреса: {event.get('address', 'не вказано')}\n"
+            f"Кількість кімнат: {event.get('rooms', 'не вказано')}\n"
+            f"Опис: {event.get('description', 'не вказано')}\n"
             f"Ціна/день: {event.get('price', '—')} UAH"
         )
     }
@@ -130,7 +132,7 @@ def main(event, context):
         return
 
     event_type = payload.get("event_type")
-    print(f"[INFO] Processing event_type={event_type} | event_id={event_id}")
+    print(f"[INFO] Processing payload '{payload}' event_type={event_type} | event_id={event_id}")
 
     # 4. Маршрутизація
     if event_type == "booking_created":
