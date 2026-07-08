@@ -77,6 +77,9 @@ def _dispatch_booking_created(event: dict, event_id: str):
         "user_name":    event.get("user_name", "Клієнт"),
         "booking_id":   event["booking_id"],
         "apartment_id": event["apartment_id"],
+        "description":  event.get("description", "не вказано"),
+        "rooms": event.get("rooms", "не вказано"),
+        "address": event.get("address", "не вказано"),
         "start_date":   event["start_date"],
         "end_date":     event["end_date"],
         "price":        event.get('price', '—')
