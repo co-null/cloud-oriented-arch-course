@@ -192,6 +192,88 @@ resource "google_storage_bucket_object" "static_files" {
   )
 }
 
+# Додання брокера Pub-Sub
+# Основний топік для повідомлень
+resource "google_pubsub_topic" "main_topic" {
+  name    = var.topic_name
+  project = var.project_id
+  
+  # Налаштування retention
+  message_retention_duration = "604800s" # 7 днів
+  
+  depends_on = [google_project_service.apis]
+}
+
+# DLQ топік
+resource "google_pubsub_topic" "notification_dlq" {
+  name       = "notification-dlq"
+  depends_on = [google_project_service.apis]
+  message_retention_duration = "604800s"  # 7 днів
+}
+
+# Pub/Sub сервісний агент повинен мати право публікувати в DLQ
+# ВАЖЛИВО: цей ресурс має існувати ДО створення підписки з DLQ-політикою
+resource "google_pubsub_topic_iam_member" "pubsub_dlq_publisher" {
+  topic  = google_pubsub_topic.notification_dlq.name
+  role   = "roles/pubsub.publisher"
+  member = google_project_service_identity.pubsub_agent.member
+}
+
+# Основна підписка
+resource "google_pubsub_subscription" "main_subscription" {
+  name    = "${var.topic_name}-subscription"
+  topic   = google_pubsub_topic.main_topic.name
+  project = var.project_id
+  
+  # Налаштування acknowledgment
+  ack_deadline_seconds = 60
+  
+  # Налаштування retention
+  message_retention_duration = "604800s" # 7 днів
+  retain_acked_messages      = false
+  
+  # Налаштування retry policy
+  retry_policy {
+    minimum_backoff = "10s"
+    maximum_backoff = "600s"
+  }
+    
+  # Налаштування expiration
+  expiration_policy {
+    ttl = "2678400s" # 31 день
+  }
+  
+  depends_on = [
+    google_pubsub_topic.main_topic,
+  ]
+}
+
+# DLQ ПІДПИСКА
+# Окрема підписка з dead_letter_policy на основному топіку. 
+# Gen 1 тригер dispatcher використовує власну автоматичну підписку,
+# а ця підписка — виключно для DLQ-маршрутизації.
+
+resource "google_pubsub_subscription" "dispatcher_sub_dlq" {
+  name  = "dispatcher-sub-with-dlq"
+  topic = google_pubsub_topic.main_topic.name
+
+  ack_deadline_seconds = 30
+
+  dead_letter_policy {
+    dead_letter_topic     = google_pubsub_topic.notification_dlq.id
+    max_delivery_attempts = 5
+  }
+
+  # ВАЖЛИВО: IAM на DLQ топік має існувати ДО створення підписки
+  depends_on = [google_pubsub_topic_iam_member.pubsub_dlq_publisher]
+}
+
+resource "google_pubsub_subscription_iam_member" "pubsub_acks_main_sub" {
+  subscription = google_pubsub_subscription.dispatcher_sub_dlq.name
+  role         = "roles/pubsub.subscriber"
+  member       = google_project_service_identity.pubsub_agent.member
+}
+
 # Створення Google Cloud Storage bucket для функцій (ім'я буде відповідати [ІД вашого проєкту]-function-bucket)
 resource "google_storage_bucket" "function_bucket" {
   name     = "${var.project_id}-function-bucket"
@@ -491,88 +573,6 @@ resource "google_cloudfunctions_function" "dlq_handler" {
     google_project_service.apis,
     google_pubsub_topic.notification_dlq
   ]
-}
-
-# Додання брокера Pub-Sub
-# Основний топік для повідомлень
-resource "google_pubsub_topic" "main_topic" {
-  name    = var.topic_name
-  project = var.project_id
-  
-  # Налаштування retention
-  message_retention_duration = "604800s" # 7 днів
-  
-  depends_on = [google_project_service.apis]
-}
-
-# DLQ топік
-resource "google_pubsub_topic" "notification_dlq" {
-  name       = "notification-dlq"
-  depends_on = [google_project_service.apis]
-  message_retention_duration = "604800s"  # 7 днів
-}
-
-# Pub/Sub сервісний агент повинен мати право публікувати в DLQ
-# ВАЖЛИВО: цей ресурс має існувати ДО створення підписки з DLQ-політикою
-resource "google_pubsub_topic_iam_member" "pubsub_dlq_publisher" {
-  topic  = google_pubsub_topic.notification_dlq.name
-  role   = "roles/pubsub.publisher"
-  member = google_project_service_identity.pubsub_agent.member
-}
-
-# Основна підписка
-resource "google_pubsub_subscription" "main_subscription" {
-  name    = "${var.topic_name}-subscription"
-  topic   = google_pubsub_topic.main_topic.name
-  project = var.project_id
-  
-  # Налаштування acknowledgment
-  ack_deadline_seconds = 60
-  
-  # Налаштування retention
-  message_retention_duration = "604800s" # 7 днів
-  retain_acked_messages      = false
-  
-  # Налаштування retry policy
-  retry_policy {
-    minimum_backoff = "10s"
-    maximum_backoff = "600s"
-  }
-    
-  # Налаштування expiration
-  expiration_policy {
-    ttl = "2678400s" # 31 день
-  }
-  
-  depends_on = [
-    google_pubsub_topic.main_topic,
-  ]
-}
-
-# DLQ ПІДПИСКА
-# Окрема підписка з dead_letter_policy на основному топіку. 
-# Gen 1 тригер dispatcher використовує власну автоматичну підписку,
-# а ця підписка — виключно для DLQ-маршрутизації.
-
-resource "google_pubsub_subscription" "dispatcher_sub_dlq" {
-  name  = "dispatcher-sub-with-dlq"
-  topic = google_pubsub_topic.main_topic.name
-
-  ack_deadline_seconds = 30
-
-  dead_letter_policy {
-    dead_letter_topic     = google_pubsub_topic.notification_dlq.id
-    max_delivery_attempts = 5
-  }
-
-  # ВАЖЛИВО: IAM на DLQ топік має існувати ДО створення підписки
-  depends_on = [google_pubsub_topic_iam_member.pubsub_dlq_publisher]
-}
-
-resource "google_pubsub_subscription_iam_member" "pubsub_acks_main_sub" {
-  subscription = google_pubsub_subscription.dispatcher_sub_dlq.name
-  role         = "roles/pubsub.subscriber"
-  member       = google_project_service_identity.pubsub_agent.member
 }
 
 # Service Account для Cloud Functions
