@@ -345,10 +345,9 @@ resource "google_cloudfunctions_function" "bookings_api" {
   }
 
   depends_on = [
+    google_project_service.apis,
     google_service_account.pubsub_function_sa,
-    google_pubsub_topic.main_topic,
-    google_project_service.firestore_api,
-    google_project_service.cloudfunctions_api
+    google_pubsub_topic.main_topic
   ]
 
   ingress_settings = "ALLOW_ALL"
@@ -504,7 +503,7 @@ resource "google_pubsub_topic" "main_topic" {
   # Налаштування retention
   message_retention_duration = "604800s" # 7 днів
   
-  depends_on = [google_project_service.pubsub_api]
+  depends_on = [google_project_service.apis]
 }
 
 # DLQ топік
