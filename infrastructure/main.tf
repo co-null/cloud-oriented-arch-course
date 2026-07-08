@@ -506,7 +506,7 @@ resource "google_cloudfunctions_function" "pubsub_dispatcher" {
   timeout = 60
 
   source_archive_bucket = google_storage_bucket.function_bucket.name
-  source_archive_object = google_storage_bucket_object.bookings_function_zip.name
+  source_archive_object = google_storage_bucket_object.dispatcher_function_zip.name
   service_account_email = google_service_account.dispatcher_sa.email
 
   # Gen 1 нативний Pub/Sub тригер
