@@ -187,6 +187,10 @@ def create_booking(user_id):
             booking_data = {
                 'user_id': user_id,
                 'apartment_id': apartment_id,
+                'address': apartment_doc.get('address'),
+                'description': apartment_doc.get('description'),
+                'rooms': apartment_doc.get('rooms'),
+                'price': apartment_doc.get('price'),
                 'start_date': start_date,
                 'end_date': end_date,
                 'created_at': datetime.now(timezone.utc).isoformat()
@@ -202,23 +206,12 @@ def create_booking(user_id):
             booking_id, booking_data = transaction_func(transaction)
 
             # Публікація події в Pub/Sub
-            message_id = add_message_to_topic({
-                'event_type': 'booking_created',
-                'booking_id': booking_id,
-                'user_id': user_id,
-                'apartment_id': apartment_id,
-                'start_date': start_date,
-                'end_date': end_date,
-                'created_at': booking_data['created_at']
-            })
+            booking_data['event_type'] = 'booking_created'
+            message_id = add_message_to_topic(booking_data)
 
             # Логування успішної спроби
             try:
-                db.collection('booking_logs').add({
-                    'user_id': user_id,
-                    'apartment_id': apartment_id,
-                    'start_date': start_date,
-                    'end_date': end_date,
+                db.collection('booking_logs').add({**booking_data,
                     'status': 'success',
                     'message_id': message_id,
                     'timestamp': datetime.now(timezone.utc).isoformat()
@@ -232,11 +225,7 @@ def create_booking(user_id):
             logger.error(f"Error creating booking: {e}")
             # Логування невдалої спроби
             try:
-                db.collection('booking_logs').add({
-                    'user_id': user_id,
-                    'apartment_id': apartment_id,
-                    'start_date': start_date,
-                    'end_date': end_date,
+                db.collection('booking_logs').add({**booking_data,
                     'status': 'fail',
                     'error': str(e),
                     'timestamp': datetime.now(timezone.utc).isoformat()

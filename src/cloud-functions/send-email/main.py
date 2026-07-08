@@ -39,6 +39,9 @@ def render_booking_email(data: dict) -> tuple:
         "user_id":      data.get("user_id", "Шановний клієнте"),
         "booking_id":   data["booking_id"],
         "apartment_id": data["apartment_id"],
+        "address":      data["address"],
+        "rooms":        data.get("rooms", "—"),
+        "description":  data.get("description", "Опис не надано"),
         "start_date":   data["start_date"],
         "end_date":     data["end_date"],
         "price":  data["price"]
@@ -70,7 +73,7 @@ def send_email(request):
     if path == "/send-booking-email":
         # Шаблонний режим: caller передає структуровані дані бронювання
         required = ["booking_id", "apartment_id", "start_date",
-                    "end_date", "price", "recipient"]
+                    "end_date", "price", "recipient", "address", "description", "rooms"]
         missing = [f for f in required if f not in request_json]
         if missing:
             return ({"status": "error",

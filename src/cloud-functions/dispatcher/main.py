@@ -79,7 +79,7 @@ def _dispatch_booking_created(event: dict, event_id: str):
         "apartment_id": event["apartment_id"],
         "start_date":   event["start_date"],
         "end_date":     event["end_date"],
-        "price":        event["price"]
+        "price":        event.get('price', '—')
     }
     _call_email_sender("/send-booking-email", payload, event_id)
 
