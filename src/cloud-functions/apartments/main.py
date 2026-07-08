@@ -122,6 +122,7 @@ def apartments():
 
     if request.method == 'POST':
         data = request.get_json()
+        data['user_id'] = user.get("user")
         errors = validate_apartment(data)
         if errors:
             return make_cors_response(jsonify({"detail": " ".join(errors)}), 400)
@@ -129,7 +130,7 @@ def apartments():
         try:
             _, doc_ref = db.collection('apartments').add(data)
             message_id = add_message_to_topic({
-                    'event_type': 'apartment_created',
+                    'event_type': 'apartment_added',
                     'user_id': user.get("user"),
                     'apartment_id': doc_ref.id, 
                     'timestamp': datetime.now(timezone.utc).isoformat(),
@@ -140,7 +141,7 @@ def apartments():
             log_entry = {
                 "user_id": user.get("user"),
                 "role": "no_role" if not user.get("role") else user.get("role"),
-                "action": "create_apartment",
+                "action": "apartment_added",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "details": {**data, 'id': doc_ref.id},
                 "message_id": message_id
@@ -153,7 +154,7 @@ def apartments():
             db.collection('logs').add({
                 "user_id": user.get("user"),
                 "role": "no_role" if not user.get("role") else user.get("role"),
-                "action": "create_apartment",
+                "action": "apartment_added",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "details": {**data, 'id': doc_ref.id},
                 'status': 'fail',

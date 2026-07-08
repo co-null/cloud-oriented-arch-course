@@ -73,7 +73,7 @@ def _call_email_sender(endpoint: str, payload: dict, event_id: str):
 
 def _dispatch_booking_created(event: dict, event_id: str):
     payload = {
-        "recipient":    event["user_email"],
+        "recipient":    event["user_id"],
         "user_name":    event.get("user_name", "Клієнт"),
         "booking_id":   event["booking_id"],
         "apartment_id": event["apartment_id"],
