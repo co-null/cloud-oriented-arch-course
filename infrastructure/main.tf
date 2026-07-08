@@ -502,7 +502,6 @@ resource "google_cloudfunctions_function" "pubsub_dispatcher" {
   description = "Підписується на booking-events та викликає send_email по REST"
   runtime     = "python310"
   entry_point = "main"
-  trigger_http = true
   available_memory_mb = 256
   timeout = 60
 
