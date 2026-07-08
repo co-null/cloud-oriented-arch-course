@@ -4,7 +4,7 @@ from firebase_admin import credentials, firestore
 from google.cloud import pubsub_v1
 from google.api_core import exceptions
 from datetime import datetime, timezone
-import os, requests, logging
+import os, requests, logging, json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
