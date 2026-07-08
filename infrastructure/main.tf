@@ -478,6 +478,7 @@ resource "google_cloudfunctions_function" "dlq_handler" {
   depends_on = [
     google_project_service.apis,
     google_pubsub_topic.notification_dlq
+  ]
 }
 
 # Додання брокера Pub-Sub
