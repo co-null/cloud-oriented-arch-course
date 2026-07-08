@@ -4,6 +4,11 @@ provider "google" {
   region  = var.region
 }
 
+provider "google-beta" {
+  project = var.project_id
+  region  = var.region
+}
+
 # 
 # АКТИВАЦІЯ GCP API
 #
@@ -43,6 +48,15 @@ resource "google_project_service" "apis" {
 
   service            = each.key
   disable_on_destroy = false
+}
+
+resource "google_project_service_identity" "pubsub_agent" {
+  provider = google-beta
+  project  = var.project_id
+  service  = "pubsub.googleapis.com"
+
+  # Pub/Sub API має бути активований до провізіонування агента
+  depends_on = [google_project_service.apis]
 }
 
 
