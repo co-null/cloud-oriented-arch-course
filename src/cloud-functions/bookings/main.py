@@ -203,7 +203,7 @@ def create_booking(user_id):
 
             # Публікація події в Pub/Sub
             message_id = add_message_to_topic({
-                'event': 'booking_created',
+                'event_type': 'booking_created',
                 'booking_id': booking_id,
                 'user_id': user_id,
                 'apartment_id': apartment_id,

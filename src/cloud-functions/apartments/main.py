@@ -129,7 +129,7 @@ def apartments():
         try:
             _, doc_ref = db.collection('apartments').add(data)
             message_id = add_message_to_topic({
-                    'event': 'booking_created', 
+                    'event_type': 'apartment_created',
                     'user_id': user.get("user"),
                     'apartment_id': doc_ref.id, 
                     'timestamp': datetime.now(timezone.utc).isoformat(),
