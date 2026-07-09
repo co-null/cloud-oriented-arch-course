@@ -6,6 +6,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from google.cloud import firestore
 from datetime import datetime, timezone
+from flask import Request
 
 # ─── Ініціалізація (один раз при cold start) ───
 
@@ -40,7 +41,6 @@ def _mark_processed(event_id: str, event_type: str):
     })
 
 # ─── REST-виклик email-sender ───
-
 def _call_email_sender(endpoint: str, payload: dict, event_id: str):
     """
     Викликає email-sender функцію по REST.
@@ -59,18 +59,18 @@ def _call_email_sender(endpoint: str, payload: dict, event_id: str):
     if resp.status_code == 200:
         print(f"[INFO] Email sent | event_id={event_id}")
         return True
-    elif resp.status_code == 400:
+    elif 400 <= resp.status_code < 500:
         # Клієнтська помилка — не кидаємо виняток, не робимо retry
         print(f"[ERROR] Bad request to email-sender: {resp.text[:200]} | event_id={event_id}")
         return False
     else:
         # Серверна помилка — кидаємо виняток → Pub/Sub зробить retry
         raise RuntimeError(
-            f"email-sender returned {resp.status_code} | event_id={event_id}"
+            f"email-sender returned {resp.status_code}: "
+            f"{resp.text[:200]} | event_id={event_id}"
         )
 
 # ─── Обробники подій ───
-
 def _dispatch_booking_created(event: dict, event_id: str):
     payload = {
         "recipient":    event["user_id"],
@@ -105,46 +105,76 @@ def _dispatch_apartment_added(event: dict, event_id: str):
     }
     _call_email_sender("/send-email", payload, event_id)
 
-# ─── Головний обробник — Gen 1 сигнатура ───
-def main(event, context):
+# ─── Головний обробник — HTTP сигнатура ───
+def main(request: Request):
     """
-    Точка входу для Gen 1 Pub/Sub тригера.
+    Точка входу для HTTP-тригера (Pub/Sub push-підписка).
 
-    event:   dict з полями 'data' (base64) та 'attributes'
-    context: метадані події — context.event_id, context.timestamp
+    Pub/Sub надсилає POST з JSON-тілом:
+    {
+      "message": {
+        "data": "<base64>",
+        "messageId": "...",
+        "attributes": {}
+      },
+      "subscription": "projects/.../subscriptions/..."
+    }
+
+    Коди відповіді:
+      200 → Pub/Sub ACK (повідомлення оброблено або навмисно відкинуто)
+      500 → Pub/Sub NACK → retry → після max_delivery_attempts → DLQ
     """
-    event_id = context.event_id
 
-    # 1. Перевірка наявності даних
-    if 'data' not in event:
+    # 1. Валідація конверта Pub/Sub push
+    envelope = request.get_json(silent=True)
+    if not envelope or "message" not in envelope:
+        print("[WARNING] Invalid Pub/Sub push envelope")
+        # 400 → Pub/Sub вважатиме це постійною помилкою і теж відправить в DLQ
+        return "Bad Request: missing message envelope", 400
+
+    message  = envelope["message"]
+    event_id = message.get("messageId") or message.get("message_id", "unknown")
+
+    # 2. Порожнє повідомлення — ACK (не retry)
+    if "data" not in message:
         print(f"[WARNING] Empty Pub/Sub message | event_id={event_id}")
-        return  # Повертаємо None → Gen 1 вважає це успіхом (ack)
+        return "OK", 200
 
-    # 2. Перевірка ідемпотентності
+    # 3. Idempotency check
     if _is_duplicate(event_id):
         print(f"[INFO] Duplicate message skipped | event_id={event_id}")
-        return
-    
-    # 3 Декодування та парсинг
+        return "OK", 200  # ACK — вже оброблено раніше
+
+    # 4. Декодування та парсинг
     try:
-        raw     = base64.b64decode(event['data']).decode('utf-8')
+        raw     = base64.b64decode(message["data"]).decode("utf-8")
         payload = json.loads(raw)
     except (ValueError, json.JSONDecodeError) as e:
-        # Невалідний JSON — не робимо retry (він не виправить проблему)
+        # Битий формат — retry не допоможе → ACK і логуємо
         print(f"[ERROR] Invalid message format: {e} | event_id={event_id}")
-        return
+        return "OK", 200
 
     event_type = payload.get("event_type")
-    print(f"[INFO] Processing payload '{payload}' event_type={event_type} | event_id={event_id}")
+    print(f"[INFO] Processing event_type={event_type} | event_id={event_id}")
 
-    # 4. Маршрутизація
-    if event_type == "booking_created":
-        _dispatch_booking_created(payload, event_id)
-    elif event_type == "apartment_added":
-        _dispatch_apartment_added(payload, event_id)
-    else:
-        print(f"[WARNING] Unknown event_type={event_type} | event_id={event_id}")
-        return
-    
-    # 5. Записуємо факт обробки після успішної відправки
+    # 5. Маршрутизація з обробкою помилок
+    try:
+        if event_type == "booking_created":
+            _dispatch_booking_created(payload, event_id)
+        elif event_type == "apartment_added":
+            _dispatch_apartment_added(payload, event_id)
+        else:
+            # Невідомий тип — ACK, не retry (retry не виправить)
+            print(f"[WARNING] Unknown event_type={event_type} | event_id={event_id}")
+            return "OK", 200
+
+    except RuntimeError as e:
+        # Серверна помилка email-sender або мережева недоступність
+        # → 500 → Pub/Sub NACK → retry → після 5 спроб → DLQ
+        print(f"[ERROR] {e}")
+        return f"Internal error: {e}", 500
+
+    # 6. Записуємо факт успішної обробки
     _mark_processed(event_id, event_type)
+
+    return "OK", 200

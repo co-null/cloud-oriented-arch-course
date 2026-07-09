@@ -3,527 +3,553 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Наша статична сторінка</title>
+  <title>ApartHub — Керування квартирами</title>
   <link rel="stylesheet" href="css/styles.css">
 
 </head>
 <body>
-  <header>
-    <div class="logo">
-      <img src="img/hero.jpg" alt="Hero Image">
+
+  <!-- ─── Header ─── -->
+  <header class="header">
+    <div class="header-inner">
+      <a class="header-brand" href="#">⬛ ApartHub</a>
+      <nav>
+        <ul class="header-nav">
+          <li><a href="#">Дашборд</a></li>
+          <li><a href="#">Квартири</a></li>
+          <li><a href="#">Бронювання</a></li>
+          <li><a href="#">Події</a></li>
+        </ul>
+      </nav>
+      <div class="header-user">
+        <span id="header-email"></span>
+        <button id="signout-btn" class="btn btn-danger-ghost" style="display:none;">Вийти</button>
+      </div>
     </div>
-    <h1>Вітаємо на нашій сторінці!</h1>
-    <nav>
-      <ul>
-        <li><a href="#">Головна</a></li>
-        <li><a href="#">Про нас</a></li>
-        <li><a href="#">Послуги</a></li>
-        <li><a href="#">Контакти</a></li>
-      </ul>
-    </nav>
   </header>
-  <main>
-    <!-- Блок аутентифікації -->
-    <section class="auth-block" style="max-width:400px;margin:2em auto;padding:1em;border:1px solid #ccc;border-radius:8px;">
-      <h3>Аутентифікація</h3>
-      <div id="auth-status">Ви не авторизовані.</div>
-      <form id="auth-signin-form" style="margin-top:1em;">
-        <input type="email" id="auth-email" placeholder="Email" required style="width:100%;margin-bottom:0.5em;">
-        <input type="password" id="auth-password" placeholder="Пароль" required style="width:100%;margin-bottom:0.5em;">
-        <button type="submit" style="width:100%;">Увійти</button>
-      </form>
-      <button id="email-signin-btn" style="width:100%;margin-top:0.5em;">Новий користувач</button>
-      <button id="google-signin-btn" style="width:100%;margin-top:0.5em;">Увійти через Google</button>
-      <button id="signout-btn" style="width:100%;margin-top:0.5em;display:none;">Вийти</button>
-      <div id="token-check-result" style="margin-top:1em;"></div>
-    </section>
 
-    <section class="intro">
-      <!-- Блок для виводу останніх подій -->
-      <div class="events-block" style="max-width:800px;margin:2em auto;padding:1em;border:1px solid #ddd;border-radius:8px;background-color:#f9f9f9;">
-        <h3>Останні події системи</h3>
-        <div style="margin-bottom:1em;">
-          <button id="loadEventsBtn" style="padding:0.5em 1em;background-color:#007bff;color:white;border:none;border-radius:4px;cursor:pointer;">
-            Отримати події за останні 30 хв
+  <!-- ─── Dashboard ─── -->
+  <main class="dashboard">
+
+    <!-- ─── Auth Card ─── -->
+    <section class="card auth-card">
+      <p class="card-title">Акаунт</p>
+
+      <!-- Стан: не авторизований -->
+      <div id="auth-form-block">
+        <div class="field">
+          <label for="auth-email">Email</label>
+          <input type="email" id="auth-email" placeholder="you@example.com">
+        </div>
+        <div class="field">
+          <label for="auth-password">Пароль</label>
+          <input type="password" id="auth-password" placeholder="••••••••">
+        </div>
+
+        <form id="auth-signin-form">
+          <button type="submit" class="btn btn-primary btn-full" style="margin-bottom:8px;">
+            Увійти
           </button>
-          <span id="eventsLoading" style="margin-left:1em;display:none;color:#666;">Завантаження...</span>
-        </div>
-        <div id="eventsContainer" style="max-height:400px;overflow-y:auto;border:1px solid #ccc;border-radius:4px;background-color:white;padding:1em;">
-          <p style="color:#666;text-align:center;">Натисніть кнопку для завантаження подій</p>
-        </div>
-        <div id="eventsStats" style="margin-top:1em;font-size:0.9em;color:#666;"></div>
-      </div>    
-    </section>
-    <section class="features">
-      <div class="feature">
-        <img src="img/feature2.png" alt="Feature 2">
-        <h3>Додати квартиру</h3>
-        <form id="apartmentForm" style="margin-top:1em;">
-          <input type="text" id="address" placeholder="Адреса" required style="width:100%;margin-bottom:0.5em;">
-          <input type="number" id="rooms" placeholder="Кількість кімнат" required style="width:100%;margin-bottom:0.5em;">
-          <input type="number" id="price" placeholder="Ціна" required style="width:100%;margin-bottom:0.5em;">
-          <textarea id="description" placeholder="Опис" style="width:100%;margin-bottom:0.5em;"></textarea>
-          <button type="submit" style="width:100%;">Додати квартиру</button>
         </form>
+
+        <button id="email-signin-btn" class="btn btn-secondary btn-full" style="margin-bottom:8px;">
+          Зареєструватися
+        </button>
+
+        <div class="divider">або</div>
+
+        <button id="google-signin-btn" class="btn btn-google btn-full">
+          <svg width="16" height="16" viewBox="0 0 48 48" fill="none">
+            <path d="M44.5 20H24v8.5h11.7C34.2 33.4 29.8 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l6-6C34.4 6.4 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-8 20-20 0-1.3-.2-2.7-.5-4z" fill="#FFC107"/>
+            <path d="M6.3 14.7l7 5.1C15 16.1 19.1 13 24 13c3 0 5.8 1.1 7.9 3l6-6C34.4 6.4 29.5 4 24 4 16.3 4 9.6 8.3 6.3 14.7z" fill="#FF3D00"/>
+            <path d="M24 44c5.4 0 10.2-1.8 13.9-4.9l-6.4-5.4C29.5 35.5 26.9 36 24 36c-5.8 0-10.7-3.9-12.4-9.2l-7 5.4C8.1 39.3 15.4 44 24 44z" fill="#4CAF50"/>
+            <path d="M44.5 20H24v8.5h11.7c-.8 2.3-2.3 4.3-4.2 5.7l6.4 5.4C41.7 36.3 44.5 30.6 44.5 24c0-1.3-.2-2.7-.5-4z" fill="#1976D2"/>
+          </svg>
+          Увійти через Google
+        </button>
       </div>
-      <div class="feature">
-        <img src="img/feature3.png" alt="Feature 3">
-        <h3>Бронювання квартир на період</h3>
-        <form id="dateFilterForm" style="margin-bottom:1em;">
-          <label for="dateFrom">Дата з:</label>
-          <input type="date" id="dateFrom" required>
-          <label for="dateTo" style="margin-left:1em;">Дата по:</label>
-          <input type="date" id="dateTo" required>
-        </form>
-        <button id="loadBtn" style="width:100%;margin-bottom:1em;">Завантажити квартири</button>
-        <div id="apartmentsList" style="margin-top:1em;"></div>
+
+      <!-- Стан: авторизований -->
+      <div id="auth-logged-block" style="display:none;">
+        <div class="auth-status-logged">
+          <div class="auth-avatar" id="auth-avatar">U</div>
+          <div class="auth-info">
+            <div class="auth-info-name" id="auth-name">Користувач</div>
+            <div class="auth-info-sub">✓ Авторизовано</div>
+          </div>
+        </div>
+        <div id="token-check-result"></div>
+      </div>
+
+      <!-- Статус (помилки/підказки) -->
+      <div id="auth-status" style="font-size:12px;color:var(--text-muted);margin-top:10px;"></div>
+    </section>
+
+    <!-- ─── Events Card ─── -->
+    <section class="card events-card">
+      <div class="events-toolbar">
+        <p class="card-title" style="margin-bottom:0;">Системні події</p>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span id="eventsStats"></span>
+          <button id="loadEventsBtn" class="btn btn-primary btn-sm">
+            Оновити за 30 хв
+          </button>
+        </div>
+      </div>
+
+      <div id="eventsContainer">
+        <div class="empty-state">
+          <span class="empty-state-icon">📭</span>
+          <p>Немає завантажених подій</p>
+          <small>Натисніть «Оновити» для завантаження</small>
+        </div>
       </div>
     </section>
+
+    <!-- ─── Feature Cards ─── -->
+    <div class="features-grid">
+
+      <!-- Додати квартиру -->
+      <section class="card">
+        <p class="card-title">Додати квартиру</p>
+        <form id="apartmentForm">
+          <div class="field">
+            <label for="address">Адреса</label>
+            <input type="text" id="address" placeholder="вул. Хрещатик, 1, Київ" required>
+          </div>
+          <div class="field-row">
+            <div class="field" style="margin-bottom:0;">
+              <label for="rooms">Кімнат</label>
+              <input type="number" id="rooms" placeholder="2" min="1" required>
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label for="price">Ціна / доба, грн</label>
+              <input type="number" id="price" placeholder="1500" min="0" required>
+            </div>
+          </div>
+          <div class="field" style="margin-top:10px;">
+            <label for="description">Опис</label>
+            <textarea id="description" placeholder="Коротко про квартиру…"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:4px;">
+            Додати квартиру
+          </button>
+        </form>
+      </section>
+
+      <!-- Бронювання -->
+      <section class="card">
+        <p class="card-title">Бронювання квартир</p>
+        <form id="dateFilterForm">
+          <div class="field-row">
+            <div class="field" style="margin-bottom:0;">
+              <label for="dateFrom">Дата з</label>
+              <input type="date" id="dateFrom" required>
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label for="dateTo">Дата по</label>
+              <input type="date" id="dateTo" required>
+            </div>
+          </div>
+        </form>
+        <button id="loadBtn" class="btn btn-secondary btn-full" style="margin-top:12px;">
+          Завантажити квартири
+        </button>
+        <div id="apartmentsList" class="apartments-list"></div>
+      </section>
+
+    </div>
   </main>
-  <footer>
-    <p>&copy; 2026 Вишукана сторінка. Всі права захищені.</p>
+
+  <footer class="footer">
+    © 2026 ApartHub. Всі права захищені.
   </footer>
-  <script>
-    // JS для відправки email через Cloud Function
-    const form = document.getElementById('emailForm');
-    const resultDiv = document.getElementById('result');
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      resultDiv.textContent = 'Відправка...';
+  <!-- ─── Scripts ─── -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+    import {
+      getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+      signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
 
-      const recipient = document.getElementById('recipient').value;
-      const subject = document.getElementById('subject').value;
-      const text = document.getElementById('text').value;
+    const firebaseConfig = {
+      apiKey: "AIzaSyCFZopyncDxJWSbz73o6kQ31yIHmlCCJOk",
+      authDomain: "cloud-oriented-arch-course.firebaseapp.com",
+      projectId: "cloud-oriented-arch-course",
+      storageBucket: "cloud-oriented-arch-course.firebasestorage.app",
+      messagingSenderId: "831942559156",
+      appId: "1:831942559156:web:0ae0ad7f06dacf1ed85ee1",
+      measurementId: "G-6P49MG4MW2"
+    };
 
-      // Вкажіть тут URL вашої Cloud Function:
-      const functionUrl = 'https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/send_email';
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    let currentUser = null;
 
-      try {
-        const response = await fetch(functionUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recipient, subject, text })
-        });
+    const APARTMENTS_URL = "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/apartments";
+    const BOOKINGS_URL   = "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/bookings";
+    const MESSAGES_URL   = "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/messages";
 
-        const data = await response.json();
-        if (response.ok) {
-          resultDiv.textContent = 'Email успішно надіслано!';
-          form.reset();
-        } else {
-          resultDiv.textContent = 'Помилка: ' + (data.message || 'Невідома помилка');
+    async function getIdToken() {
+      return currentUser ? await currentUser.getIdToken() : null;
+    }
+
+    // ─── Auth state ───
+    onAuthStateChanged(auth, async (user) => {
+      currentUser = user;
+      const formBlock   = document.getElementById('auth-form-block');
+      const loggedBlock = document.getElementById('auth-logged-block');
+      const signoutBtn  = document.getElementById('signout-btn');
+      const headerEmail = document.getElementById('header-email');
+      const tokenDiv    = document.getElementById('token-check-result');
+
+      if (user) {
+        const email = user.email || 'Google-користувач';
+        formBlock.style.display   = 'none';
+        loggedBlock.style.display = 'block';
+        signoutBtn.style.display  = 'inline-flex';
+        headerEmail.textContent   = email;
+
+        document.getElementById('auth-name').textContent   = email;
+        document.getElementById('auth-avatar').textContent = email[0].toUpperCase();
+
+        // Перевірка токена
+        try {
+          const idToken  = await user.getIdToken();
+          const response = await fetch(
+            'https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/protected-api',
+            { method: 'GET', headers: { 'Authorization': 'Bearer ' + idToken } }
+          );
+          const data = await response.json();
+          tokenDiv.style.display = 'block';
+          if (response.ok) {
+            tokenDiv.className = 'result-ok';
+            tokenDiv.textContent = '✓ Доступ до захищеного ресурсу дозволено';
+          } else {
+            tokenDiv.className = 'result-err';
+            tokenDiv.textContent = '✕ ' + (data.error || 'Помилка перевірки токена');
+          }
+        } catch (err) {
+          tokenDiv.style.display = 'block';
+          tokenDiv.className = 'result-err';
+          tokenDiv.textContent = '✕ Помилка мережі: ' + err.message;
         }
-      } catch (err) {
-        resultDiv.textContent = 'Помилка мережі або CORS: ' + err.message;
+
+        startAutoRefresh();
+      } else {
+        formBlock.style.display   = 'block';
+        loggedBlock.style.display = 'none';
+        signoutBtn.style.display  = 'none';
+        headerEmail.textContent   = '';
+        tokenDiv.style.display    = 'none';
+        stopAutoRefresh();
       }
     });
-  </script>
 
-  <script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
-  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
-
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
-
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyCFZopyncDxJWSbz73o6kQ31yIHmlCCJOk",
-    authDomain: "cloud-oriented-arch-course.firebaseapp.com",
-    projectId: "cloud-oriented-arch-course",
-    storageBucket: "cloud-oriented-arch-course.firebasestorage.app",
-    messagingSenderId: "831942559156",
-    appId: "1:831942559156:web:0ae0ad7f06dacf1ed85ee1",
-    measurementId: "G-6P49MG4MW2"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  let currentUser = null;
-
-  // Email/Password: Вхід або реєстрація
-  document.getElementById('auth-signin-form').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const email = document.getElementById('auth-email').value;
-    const password = document.getElementById('auth-password').value;
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (error) {
-      if (error.code === 'auth/user-not-found') {
-        try {
-          await createUserWithEmailAndPassword(auth, email, password);
-          alert('Реєстрація успішна! Тепер ви увійшли.');
-        } catch (regError) {
-          alert(regError.message);
-        }
-      } else {
-        alert(error.message);
-      }
-    }
-  });
-
-  document.getElementById('email-signin-btn').addEventListener('click', async function(e) {
-    e.preventDefault();
-    const email = document.getElementById('auth-email').value;
-    const password = document.getElementById('auth-password').value;
-    try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      alert('Реєстрація успішна! Тепер ви увійшли.');
-    } catch (regError) {
-      alert(regError.message);
-    }
-  });
-
-  // Вхід через Google
-  document.getElementById('google-signin-btn').addEventListener('click', async function() {
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-    } catch (error) {
-      alert(error.message);
-    }
-  });
-
-  // Вихід
-  document.getElementById('signout-btn').addEventListener('click', async function() {
-    await signOut(auth);
-  });
-
-  // Відображення статусу та кнопки виходу
-  onAuthStateChanged(auth, async (user) => {
-    const statusDiv = document.getElementById('auth-status');
-    const signoutBtn = document.getElementById('signout-btn');
-    const tokenCheckDiv = document.getElementById('token-check-result');
-    currentUser = user;
-    if (user) {
-      statusDiv.innerHTML = `Ви увійшли як <b>${user.email || 'Google користувач'}</b>`;
-      signoutBtn.style.display = 'block';
-
-      // Перевірка токена через вашу Cloud Function
-      const idToken = await user.getIdToken();
+    // ─── Sign in ───
+    document.getElementById('auth-signin-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email    = document.getElementById('auth-email').value;
+      const password = document.getElementById('auth-password').value;
+      const statusDiv = document.getElementById('auth-status');
       try {
-        const response = await fetch('https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/protected-api', {
-          method: 'GET',
-          headers: { 'Authorization': 'Bearer ' + idToken }
-        });
-        const data = await response.json();
-        if (response.ok) {
-          tokenCheckDiv.textContent = 'Доступ до захищеного ресурсу дозволено!';
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch (error) {
+        if (error.code === 'auth/user-not-found') {
+          try {
+            await createUserWithEmailAndPassword(auth, email, password);
+          } catch (regError) {
+            statusDiv.textContent = regError.message;
+          }
         } else {
-          tokenCheckDiv.textContent = 'Помилка перевірки токена: ' + (data.error || 'Невідома помилка');
+          statusDiv.textContent = error.message;
+        }
+      }
+    });
+
+    // ─── Register ───
+    document.getElementById('email-signin-btn').addEventListener('click', async () => {
+      const email    = document.getElementById('auth-email').value;
+      const password = document.getElementById('auth-password').value;
+      const statusDiv = document.getElementById('auth-status');
+      try {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } catch (err) {
+        statusDiv.textContent = err.message;
+      }
+    });
+
+    // ─── Google ───
+    document.getElementById('google-signin-btn').addEventListener('click', async () => {
+      try {
+        await signInWithPopup(auth, new GoogleAuthProvider());
+      } catch (err) {
+        document.getElementById('auth-status').textContent = err.message;
+      }
+    });
+
+    // ─── Sign out ───
+    document.getElementById('signout-btn').addEventListener('click', () => signOut(auth));
+
+    // ─── Add apartment ───
+    document.getElementById('apartmentForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const idToken = await getIdToken();
+      if (!idToken) { alert('Ви не авторизовані!'); return; }
+
+      const btn = e.target.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Додавання…';
+
+      try {
+        const res = await fetch(APARTMENTS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+          body: JSON.stringify({
+            address:     document.getElementById('address').value,
+            rooms:       parseInt(document.getElementById('rooms').value),
+            price:       parseInt(document.getElementById('price').value),
+            description: document.getElementById('description').value
+          })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          e.target.reset();
+          showToast('Квартиру успішно додано ✓', 'success');
+        } else {
+          showToast('Помилка: ' + (result.detail || result.status || 'Невідома помилка'), 'error');
         }
       } catch (err) {
-        tokenCheckDiv.textContent = 'Помилка мережі або CORS: ' + err.message;
+        showToast('Помилка мережі: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Додати квартиру';
       }
-    } else {
-      statusDiv.textContent = 'Ви не авторизовані.';
-      signoutBtn.style.display = 'none';
-      tokenCheckDiv.textContent = '';
-    }
-  });
+    });
 
-async function getIdToken() {
-  if (currentUser) {
-    return await currentUser.getIdToken();
-  }
-  return null;
-}
+    // ─── Load apartments ───
+    document.getElementById('loadBtn').addEventListener('click', async () => {
+      const idToken = await getIdToken();
+      if (!idToken) { alert('Ви не авторизовані!'); return; }
 
-// Форма для додання та відображення списку квартир через Cloud Function
-const APARTMENTS_URL = "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/apartments"; 
-const BOOKINGS_URL = "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/bookings";
+      const btn = document.getElementById('loadBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner spinner-dark"></span> Завантаження…';
 
-document.getElementById('apartmentForm').addEventListener('submit', async function(e) {
-  e.preventDefault();
+      try {
+        const res = await fetch(APARTMENTS_URL, { headers: { 'Authorization': 'Bearer ' + idToken } });
+        if (res.ok) {
+          const apartments = await res.json();
+          renderApartments(apartments);
+        } else {
+          const err = await res.json();
+          showToast('Помилка: ' + (err.detail || 'Невідома помилка'), 'error');
+        }
+      } catch (err) {
+        showToast('Помилка мережі: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Завантажити квартири';
+      }
+    });
 
-  const idToken = await getIdToken();
-  if (!idToken) {
-    alert('Ви не авторизовані!');
-    return;
-  }
-
-  const data = {
-    address: document.getElementById('address').value,
-    rooms: parseInt(document.getElementById('rooms').value),
-    price: parseInt(document.getElementById('price').value),
-    description: document.getElementById('description').value
-  };
-
-  try {
-    const response = await fetch(APARTMENTS_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + idToken
-      },
-      body: JSON.stringify(data)
-  });
-
-  const result = await response.json();
-    if (response.ok) {
-      alert('Квартиру додано!');
-      document.getElementById('apartmentForm').reset();
-    } else {
-      // Вивести повідомлення про помилку з detail або status
-      alert('Помилка: ' + (result.detail || result.status || 'Невідома помилка'));
-    }
-  } catch (err) {
-    alert('Помилка мережі: ' + err.message);
-  }
-
-});
-
-document.getElementById('loadBtn').addEventListener('click', async function(e) {
-  const idToken = await getIdToken();
-  if (!idToken) {
-    alert('Ви не авторизовані!');
-    return;
-  }
-  
-  const res = await fetch(APARTMENTS_URL, {
-    headers: {
-      'Authorization': 'Bearer ' + idToken
-    }
-  });
-
-  if (res.ok) {
-    const apartments = await res.json();
-    document.getElementById('apartmentsList').innerHTML = apartments.map(a => `
-        <div style="border:1px solid #ccc;padding:0.5em;margin-bottom:0.5em;border-radius:6px;">
-          <b>${a.address}</b>, ${a.rooms} кімн., ${a.price} грн — ${a.description || ''}
-          <br>
-          <button class="book-btn" data-id="${a.id}">Забронювати</button>
+    function renderApartments(apartments) {
+      const list = document.getElementById('apartmentsList');
+      if (!apartments.length) {
+        list.innerHTML = '<p style="font-size:13px;color:var(--text-muted);text-align:center;padding:16px 0;">Квартир не знайдено</p>';
+        return;
+      }
+      list.innerHTML = apartments.map(a => `
+        <div class="apartment-item">
+          <div class="apartment-info">
+            <div class="apartment-address">${a.address}</div>
+            <div class="apartment-meta">${a.rooms} кімн. · ${a.price} грн/доба${a.description ? ' · ' + a.description : ''}</div>
+          </div>
+          <button class="btn btn-primary btn-sm book-btn" data-id="${a.id}">Забронювати</button>
         </div>
       `).join('');
-  } else {
-    const error = await res.json();
-    alert('Помилка: ' + (error.detail || 'Невідома помилка'));
-  }
-});
+    }
 
-// Обробка кліку на "Забронювати"
-document.getElementById('apartmentsList').addEventListener('click', async function(e) {
-  if (e.target.classList.contains('book-btn')) {
-    const apartmentId = e.target.getAttribute('data-id');
-    const dateFrom = document.getElementById('dateFrom').value;
-    const dateTo = document.getElementById('dateTo').value;
-    const idToken = await getIdToken();
-    if (!idToken) {alert('Ви не авторизовані!'); return;}
-    // POST-запит на бронювання
-    try {
-      const res = await fetch(BOOKINGS_URL, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken},
-        body: JSON.stringify({apartment_id: apartmentId,
-          start_date: dateFrom,
-          end_date: dateTo}) });
-      const data = await res.json();
-      if (res.ok) {alert('Бронювання успішно створено!');} 
-      else {alert('Помилка: ' + (data.error || data.message || 'Невідома помилка'));}
-    } catch (err) {alert('Помилка мережі: ' + err.message);}}
-});
+    // ─── Book apartment ───
+    document.getElementById('apartmentsList').addEventListener('click', async (e) => {
+      if (!e.target.classList.contains('book-btn')) return;
 
-// Обробка кліку на кнопку завантаження подій
-const MESSAGES_URL = "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/messages";
+      const idToken     = await getIdToken();
+      if (!idToken) { alert('Ви не авторизовані!'); return; }
 
-document.getElementById('loadEventsBtn').addEventListener('click', async function() {
-  const idToken = await getIdToken();
-  if (!idToken) {
-    alert('Ви не авторизовані!');
-    return;
-  }
+      const apartmentId = e.target.getAttribute('data-id');
+      const dateFrom    = document.getElementById('dateFrom').value;
+      const dateTo      = document.getElementById('dateTo').value;
 
-  const loadingSpan = document.getElementById('eventsLoading');
-  const eventsContainer = document.getElementById('eventsContainer');
-  const eventsStats = document.getElementById('eventsStats');
-  const loadBtn = document.getElementById('loadEventsBtn');
+      if (!dateFrom || !dateTo) {
+        showToast('Будь ласка, оберіть дати бронювання', 'error');
+        return;
+      }
 
-  // Показати індикатор завантаження
-  loadingSpan.style.display = 'inline';
-  load
-Btn.disabled = true;
-  eventsContainer.innerHTML = '<p style="text-align:center;color:#666;">Завантаження подій...</p>';
+      e.target.disabled = true;
+      e.target.innerHTML = '<span class="spinner"></span>';
 
-  try {
-    const response = await fetch(MESSAGES_URL, {
-      method: 'GET',
-      headers: {
-        'Authorization': 'Bearer ' + idToken,
-        'Content-Type': 'application/json'
+      try {
+        const res = await fetch(BOOKINGS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+          body: JSON.stringify({ apartment_id: apartmentId, start_date: dateFrom, end_date: dateTo })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showToast('Бронювання успішно створено ✓', 'success');
+        } else {
+          showToast('Помилка: ' + (data.error || data.message || 'Невідома помилка'), 'error');
+        }
+      } catch (err) {
+        showToast('Помилка мережі: ' + err.message, 'error');
+      } finally {
+        e.target.disabled = false;
+        e.target.textContent = 'Забронювати';
       }
     });
 
-    const data = await response.json();
+    // ─── Load events ───
+    document.getElementById('loadEventsBtn').addEventListener('click', () => loadEvents(true));
 
-    if (response.ok && data.success) {
-      displayEvents(data);
-    } else {
-      eventsContainer.innerHTML = `
-        <div style="color:#dc3545;text-align:center;padding:1em;">
-          <strong>Помилка:</strong> ${data.detail || data.error || 'Не вдалося завантажити події'}
-        </div>
-      `;
-    }
-  } catch (error) {
-    console.error('Error loading events:', error);
-    eventsContainer.innerHTML = `
-      <div style="color:#dc3545;text-align:center;padding:1em;">
-        <strong>Помилка мережі:</strong> ${error.message}
-      </div>
-    `;
-  } finally {
-    // Приховати індикатор завантаження
-    loadingSpan.style.display = 'none';
-    loadBtn.disabled = false;
-  }
-});
+    async function loadEvents(showLoader = false) {
+      const idToken = await getIdToken();
+      if (!idToken) return;
 
-// Функція для відображення подій
-function displayEvents(data) {
-  const eventsContainer = document.getElementById('eventsContainer');
-  const eventsStats = document.getElementById('eventsStats');
-  
-  // Оновлення статистики
-  eventsStats.innerHTML = `
-    Знайдено <strong>${data.message_count}</strong> подій за останні ${data.time_range_minutes} хвилин. 
-    Останнє оновлення: ${new Date(data.timestamp).toLocaleString('uk-UA')}
-  `;
+      const btn       = document.getElementById('loadEventsBtn');
+      const container = document.getElementById('eventsContainer');
 
-  if (data.messages && data.messages.length > 0) {
-    // Сортування подій за часом (найновіші спочатку)
-    const sortedMessages = data.messages.sort((a, b) => 
-      new Date(b.publish_time) - new Date(a.publish_time)
-    );
+      if (showLoader) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Завантаження…';
+        container.innerHTML = `
+          <div class="empty-state">
+            <span class="spinner spinner-dark" style="width:20px;height:20px;"></span>
+            <p>Завантаження подій…</p>
+          </div>`;
+      }
 
-    const eventsHtml = sortedMessages.map(message => {
-      const publishTime = new Date(message.publish_time);
-      const timeAgo = getTimeAgo(publishTime);
-      
-      // Визначення типу події для кольорового кодування
-      const eventType = message.attributes?.event_type || message.data?.event_type || 'unknown';
-      const eventColor = getEventColor(eventType);
-      
-      return `
-        <div style="border-left:4px solid ${eventColor};margin-bottom:1em;padding:0.75em;background-color:#f8f9fa;border-radius:0 4px 4px 0;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5em;">
-            <span style="font-weight:bold;color:${eventColor};">
-              ${formatEventType(eventType)}
-            </span>
-            <span style="font-size:0.85em;color:#666;">
-              ${timeAgo}
-            </span>
-          </div>
-          
-          <div style="font-size:0.9em;margin-bottom:0.5em;">
-            <strong>Дані:</strong>
-            <pre style="background-color:white;padding:0.5em;border-radius:3px;margin:0.25em 0;font-size:0.85em;overflow-x:auto;">${JSON.stringify(message.data, null, 2)}</pre>
-          </div>
-          
-          <div style="font-size:0.8em;color:#666;margin-top:0.5em;">
-            ID: ${message.message_id}
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    eventsContainer.innerHTML = eventsHtml;
-  } else {
-    eventsContainer.innerHTML = `
-      <div style="text-align:center;padding:2em;color:#666;">
-        
-<p>Подій за останні ${data.time_range_minutes} хвилин не знайдено</p>
-        <p style="font-size:0.9em;">Спробуйте створити бронювання або додати квартиру для генерації подій</p>
-      </div>
-    `;
-  }
-}
-
-// Функція для визначення кольору події
-function getEventColor(eventType) {
-  const colors = {
-    'booking_created': '#28a745',
-    'apartment_added': '#007bff', 
-    'user_action': '#ffc107',
-    'error': '#dc3545',
-    'unknown': '#6c757d'
-  };
-  return colors[eventType] || colors['unknown'];
-}
-
-// Функція для форматування типу події
-function formatEventType(eventType) {
-  const types = {
-    'booking_created': '🏠 Створено бронювання',
-    'apartment_added': '🏢 Додано квартиру',
-    'user_action': '👤 Дія користувача',
-    'error': '❌ Помилка',
-    'unknown': '❓ Невідома подія'
-  };
-  return types[eventType] || `📝 ${eventType}`;
-}
-
-// Функція для розрахунку часу, що минув
-function getTimeAgo(date) {
-  const now = new Date();
-  const diffMs = now - date;
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  
-  if (diffMins < 1) return 'щойно';
-  if (diffMins < 60) return `${diffMins} хв тому`;
-  if (diffHours < 24) return `${diffHours} год тому`;
-  return date.toLocaleDateString('uk-UA');
-}
-
-// Автоматичне оновлення подій кожні 2 хвилини (опціонально)
-let autoRefreshInterval = null;
-
-function startAutoRefresh() {
-  if (autoRefreshInterval) return;
-  
-  autoRefreshInterval = setInterval(async () => {
-    const idToken = await getIdToken();
-    if (idToken && document.getElementById('eventsContainer').innerHTML !== '<p style="color:#666;text-align:center;">Натисніть кнопку для завантаження подій</p>') {
-      // Тихе оновлення без показу індикатора завантаження
       try {
-        const response = await fetch(MESSAGES_URL, {
-          method: 'GET',
-          headers: {
-            'Authorization': 'Bearer ' + idToken,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        const data = await response.json();
-        if (response.ok && data.success) {
-          displayEvents(data);
+        const res  = await fetch(MESSAGES_URL, { headers: { 'Authorization': 'Bearer ' + idToken } });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          renderEvents(data);
+        } else {
+          container.innerHTML = `
+            <div class="empty-state">
+              <span class="empty-state-icon">⚠️</span>
+              <p>${data.detail || data.error || 'Не вдалося зава��тажити події'}</p>
+            </div>`;
         }
-      } catch (error) {
-        console.log('Auto-refresh failed:', error);
+      } catch (err) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <span class="empty-state-icon">🔌</span>
+            <p>Помилка мережі</p>
+            <small>${err.message}</small>
+          </div>`;
+      } finally {
+        if (showLoader) {
+          btn.disabled = false;
+          btn.textContent = 'Оновити за 30 хв';
+        }
       }
     }
-  }, 120000); // 2 хвилини
-}
 
-function stopAutoRefresh() {
-  if (autoRefreshInterval) {
-    clearInterval(autoRefreshInterval);
-    autoRefreshInterval = null;
-  }
-}
+    function renderEvents(data) {
+      const container  = document.getElementById('eventsContainer');
+      const statsDiv   = document.getElementById('eventsStats');
 
-// Запуск автооновлення при авторизації
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    startAutoRefresh();
-  } else {
-    stopAutoRefresh();
-  }
-});
+      statsDiv.textContent = `${data.message_count} подій · ${new Date(data.timestamp).toLocaleTimeString('uk-UA')}`;
 
-</script>
+      if (!data.messages?.length) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <span class="empty-state-icon">📭</span>
+            <p>Подій за останні ${data.time_range_minutes} хв не знайдено</p>
+            <small>Створіть бронювання або додайте квартиру</small>
+          </div>`;
+        return;
+      }
+
+      const sorted = [...data.messages].sort((a, b) => new Date(b.publish_time) - new Date(a.publish_time));
+
+      container.innerHTML = sorted.map(msg => {
+        const eventType = msg.attributes?.event_type || msg.data?.event_type || 'unknown';
+        const color     = getEventColor(eventType);
+        const label     = formatEventType(eventType);
+        const timeAgo   = getTimeAgo(new Date(msg.publish_time));
+
+        return `
+          <div class="event-item">
+            <span class="event-dot" style="background:${color};"></span>
+            <div class="event-body">
+              <div class="event-type" style="color:${color};">${label}</div>
+              <div class="event-data">${JSON.stringify(msg.data, null, 2)}</div>
+              <div class="event-meta">ID: ${msg.message_id}</div>
+            </div>
+            <span class="event-time">${timeAgo}</span>
+          </div>`;
+      }).join('');
+    }
+
+    // ─── Helpers ───
+    function getEventColor(t) {
+      return ({ booking_created:'#16a34a', apartment_added:'#3b6ef8', user_action:'#d97706', error:'#dc2626' })[t] || '#6b7280';
+    }
+
+    function formatEventType(t) {
+      return ({ booking_created:'🏠 Створено бронювання', apartment_added:'🏢 Додано квартиру', user_action:'👤 Дія користувача', error:'❌ Помилка' })[t] || `📝 ${t}`;
+    }
+
+    function getTimeAgo(date) {
+      const m = Math.floor((Date.now() - date) / 60000);
+      const h = Math.floor(m / 60);
+      if (m < 1) return 'щойно';
+      if (m < 60) return `${m} хв тому`;
+      if (h < 24) return `${h} год тому`;
+      return date.toLocaleDateString('uk-UA');
+    }
+
+    // ─── Toast notifications ───
+    function showToast(message, type = 'success') {
+      const existing = document.getElementById('toast');
+      if (existing) existing.remove();
+
+      const toast = document.createElement('div');
+      toast.id = 'toast';
+      Object.assign(toast.style, {
+        position: 'fixed', bottom: '24px', right: '24px', zIndex: '9999',
+        padding: '10px 16px', borderRadius: '8px', fontSize: '13px',
+        fontWeight: '500', boxShadow: '0 4px 12px rgba(0,0,0,.15)',
+        background: type === 'success' ? '#16a34a' : '#dc2626',
+        color: '#fff', transition: 'opacity .3s',
+        maxWidth: '320px'
+      });
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    // ─── Auto-refresh ───
+    let autoRefreshInterval = null;
+
+    function startAutoRefresh() {
+      if (autoRefreshInterval) return;
+      autoRefreshInterval = setInterval(() => loadEvents(false), 120000);
+    }
+
+    function stopAutoRefresh() {
+      clearInterval(autoRefreshInterval);
+      autoRefreshInterval = null;
+    }
+
+    // Авто-рефреш також слухає auth state (другий обробник)
+    onAuthStateChanged(auth, (user) => {
+      if (!user) stopAutoRefresh();
+    });
+  </script>
 
 </body>
 </html>

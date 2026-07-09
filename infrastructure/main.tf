@@ -130,25 +130,33 @@ resource "google_project_iam_member" "function_sa_subscription_admin" {
 }
 
 # IAM права  для Dispatcher
-# dispatcher: запис логів
+# Dispatcher: запис логів
 resource "google_project_iam_member" "dispatcher_log_writer" {
   project = var.project_id
   role    = "roles/logging.logWriter"
   member  = "serviceAccount:${google_service_account.dispatcher_sa.email}"
 }
 
-# dispatcher: запис метрик
+# Dispatcher: запис метрик
 resource "google_project_iam_member" "dispatcher_metric_writer" {
   project = var.project_id
   role    = "roles/monitoring.metricWriter"
   member  = "serviceAccount:${google_service_account.dispatcher_sa.email}"
 }
 
-# dispatcher: Firestore для idempotency store
+# Dispatcher: Firestore для idempotency store
 resource "google_project_iam_member" "dispatcher_firestore" {
   project = var.project_id
   role    = "roles/datastore.user"
   member  = "serviceAccount:${google_service_account.dispatcher_sa.email}"
+}
+
+# Dispatcher SA може генерувати OIDC-токени для push-підписки
+# Потрібно щоб Pub/Sub міг підписувати запити від імені цього SA
+resource "google_service_account_iam_member" "pubsub_agent_token_creator" {
+  service_account_id = google_service_account.dispatcher_sa.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = google_project_service_identity.pubsub_agent.member
 }
 
 
@@ -206,17 +214,30 @@ resource "google_pubsub_topic" "main_topic" {
 
 # DLQ топік
 resource "google_pubsub_topic" "notification_dlq" {
-  name       = "notification-dlq"
-  depends_on = [google_project_service.apis]
-  message_retention_duration = "604800s"  # 7 днів
+  name                       = "notification-dlq"
+  project                    = var.project_id
+
+  # Налаштування retention
+  message_retention_duration = "604800s"
+
+  depends_on                 = [google_project_service.apis]
 }
 
 # Pub/Sub сервісний агент повинен мати право публікувати в DLQ
-# ВАЖЛИВО: цей ресурс має існувати ДО створення підписки з DLQ-політикою
 resource "google_pubsub_topic_iam_member" "pubsub_dlq_publisher" {
-  topic  = google_pubsub_topic.notification_dlq.name
-  role   = "roles/pubsub.publisher"
-  member = google_project_service_identity.pubsub_agent.member
+  project = var.project_id
+  topic   = google_pubsub_topic.notification_dlq.name
+  role    = "roles/pubsub.publisher"
+  member  = google_project_service_identity.pubsub_agent.member
+}
+
+# Pub/Sub service agent може ACK повідомлення в основній підписці
+# (потрібно для переміщення в DLQ)
+resource "google_pubsub_subscription_iam_member" "pubsub_agent_subscriber" {
+  project      = var.project_id
+  subscription = google_pubsub_subscription.dispatcher_push_sub.name
+  role         = "roles/pubsub.subscriber"
+  member       = google_project_service_identity.pubsub_agent.member
 }
 
 # Основна підписка
@@ -249,29 +270,46 @@ resource "google_pubsub_subscription" "main_subscription" {
 }
 
 # DLQ ПІДПИСКА
-# Окрема підписка з dead_letter_policy на основному топіку. 
-# Gen 1 тригер dispatcher використовує власну автоматичну підписку,
-# а ця підписка — виключно для DLQ-маршрутизації.
-
-resource "google_pubsub_subscription" "dispatcher_sub_dlq" {
-  name  = "dispatcher-sub-with-dlq"
+resource "google_pubsub_subscription" "dispatcher_push_sub" {
+  name  = "dispatcher-push-sub"
   topic = google_pubsub_topic.main_topic.name
 
-  ack_deadline_seconds = 30
+  ack_deadline_seconds = 60
 
+  # Push до HTTP-функції з OIDC-аутентифікацією
+  push_config {
+    push_endpoint = google_cloudfunctions_function.pubsub_dispatcher.https_trigger_url
+
+    oidc_token {
+      service_account_email = google_service_account.dispatcher_sa.email
+      audience              = google_cloudfunctions_function.pubsub_dispatcher.https_trigger_url
+    }
+  }
+
+  # DLQ після 5 невдалих спроб
   dead_letter_policy {
     dead_letter_topic     = google_pubsub_topic.notification_dlq.id
     max_delivery_attempts = 5
   }
 
-  # ВАЖЛИВО: IAM на DLQ топік має існувати ДО створення підписки
-  depends_on = [google_pubsub_topic_iam_member.pubsub_dlq_publisher]
-}
+  retry_policy {
+    minimum_backoff = "10s"
+    maximum_backoff = "600s"
+  }
 
-resource "google_pubsub_subscription_iam_member" "pubsub_acks_main_sub" {
-  subscription = google_pubsub_subscription.dispatcher_sub_dlq.name
-  role         = "roles/pubsub.subscriber"
-  member       = google_project_service_identity.pubsub_agent.member
+  message_retention_duration = "604800s"
+  retain_acked_messages      = false
+
+  expiration_policy {
+    ttl = "2678400s"
+  }
+
+  # IAM на DLQ та права агента мають бути готові до створення підписки
+  depends_on = [
+    google_pubsub_topic_iam_member.pubsub_dlq_publisher,
+    google_service_account_iam_member.pubsub_agent_token_creator,
+    google_cloudfunctions_function.pubsub_dispatcher
+  ]
 }
 
 # Створення Google Cloud Storage bucket для функцій (ім'я буде відповідати [ІД вашого проєкту]-function-bucket)
@@ -509,21 +547,15 @@ resource "google_cloudfunctions_function" "pubsub_dispatcher" {
   source_archive_object = google_storage_bucket_object.dispatcher_function_zip.name
   service_account_email = google_service_account.dispatcher_sa.email
 
-  # Gen 1 нативний Pub/Sub тригер
-  event_trigger {
-    event_type = "google.pubsub.topic.publish"   # Gen 1 синтаксис
-    resource   = google_pubsub_topic.main_topic.id
-
-    failure_policy {
-      retry = true  # При RuntimeError — Pub/Sub автоматично повторить доставку
-    }
-  }
+  trigger_http = true
+  https_trigger_security_level = "SECURE_ALWAYS"
+  ingress_settings             = "ALLOW_ALL"
 
   environment_variables = {
     GCP_PROJECT      = var.project_id
     EMAIL_SENDER_URL = google_cloudfunctions_function.send_email.https_trigger_url
     ADMIN_EMAIL      = var.admin_email
-    PUBSUB_TOPIC = google_pubsub_topic.main_topic.name
+    PUBSUB_TOPIC     = google_pubsub_topic.main_topic.name
   }
 
   depends_on = [
@@ -532,6 +564,12 @@ resource "google_cloudfunctions_function" "pubsub_dispatcher" {
     google_project_iam_member.dispatcher_firestore,
     google_pubsub_topic.main_topic
   ]
+}
+
+resource "google_cloudfunctions_function_iam_member" "dispatcher_invoker" {
+  cloud_function = google_cloudfunctions_function.pubsub_dispatcher.name
+  role           = "roles/cloudfunctions.invoker"
+  member         = google_project_service_identity.pubsub_agent.member
 }
 
 # dlq-handler
@@ -602,6 +640,7 @@ resource "google_service_account" "pubsub_subscriber_sa" {
 resource "google_service_account" "dispatcher_sa" {
   account_id   = "pubsub-dispatcher-sa"
   display_name = "Pub/Sub Dispatcher Function SA"
+  project      = var.project_id  # явно вказуємо project
 }
 
 
@@ -697,13 +736,13 @@ resource "google_monitoring_alert_policy" "dlq_non_empty" {
 }
 
 resource "google_monitoring_alert_policy" "dispatcher_errors" {
-  display_name = "⚠️ pubsub-dispatcher: помилки виконання"
+  display_name = "⚠️ pubsub_dispatcher: помилки виконання"
   combiner     = "OR"
 
   conditions {
     display_name = "Function execution errors"
     condition_threshold {
-      filter          = "resource.type=\"cloud_function\" AND resource.labels.function_name=\"pubsub-dispatcher\" AND metric.type=\"cloudfunctions.googleapis.com/function/execution_count\" AND metric.labels.status=\"error\""
+      filter          = "resource.type=\"cloud_function\" AND resource.labels.function_name=\"pubsub_dispatcher\" AND metric.type=\"cloudfunctions.googleapis.com/function/execution_count\" AND metric.labels.status=\"error\""
       comparison      = "COMPARISON_GT"
       threshold_value = 5
       duration        = "300s"
