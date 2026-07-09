@@ -5,7 +5,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from google.cloud import firestore
-import datetime
+from datetime import datetime, timezone
 
 # ─── Ініціалізація (один раз при cold start) ───
 
@@ -35,7 +35,7 @@ def _is_duplicate(event_id: str) -> bool:
 
 def _mark_processed(event_id: str, event_type: str):
     _db.collection("processed_notifications").document(event_id).set({
-        "processed_at": datetime.datetime.utcnow().isoformat(),
+        "processed_at": datetime.now(timezone.utc).isoformat(),
         "event_type":   event_type
     })
 
@@ -78,8 +78,8 @@ def _dispatch_booking_created(event: dict, event_id: str):
         "booking_id":   event["booking_id"],
         "apartment_id": event["apartment_id"],
         "description":  event.get("description", "не вказано"),
-        "rooms": event.get("rooms", "не вказано"),
-        "address": event.get("address", "не вказано"),
+        "rooms":        event.get("rooms", "не вказано"),
+        "address":      event.get("address", "не вказано"),
         "start_date":   event["start_date"],
         "end_date":     event["end_date"],
         "price":        event.get('price', '—')
