@@ -1,1 +1,2 @@
 google-cloud-firestore==2.*
+google-cloud-logging
