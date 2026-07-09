@@ -269,7 +269,6 @@ resource "google_pubsub_subscription" "main_subscription" {
   ]
 }
 
-# DLQ ПІДПИСКА
 resource "google_pubsub_subscription" "dispatcher_push_sub" {
   name  = "dispatcher-push-sub"
   topic = google_pubsub_topic.main_topic.name
@@ -567,6 +566,8 @@ resource "google_cloudfunctions_function" "pubsub_dispatcher" {
 }
 
 resource "google_cloudfunctions_function_iam_member" "dispatcher_invoker" {
+  project        = var.project_id
+  region         = var.region
   cloud_function = google_cloudfunctions_function.pubsub_dispatcher.name
   role           = "roles/cloudfunctions.invoker"
   member         = google_project_service_identity.pubsub_agent.member
