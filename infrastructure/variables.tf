@@ -32,3 +32,15 @@ variable "alert_email" {
   description = "Email для отримання алертів команди"
   type        = string
 }
+
+variable "watchdog_timeout_minutes" {
+  description = "Хвилин після яких бронювання вважається 'завислим'"
+  type        = number
+  default     = 30
+}
+
+variable "watchdog_schedule" {
+  description = "Cron-вираз для запуску watchdog"
+  type        = string
+  default     = "*/5 * * * *"  # кожні 5 хвилин
+}

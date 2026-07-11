@@ -40,6 +40,29 @@ def _mark_processed(event_id: str, event_type: str):
         "event_type":   event_type
     })
 
+# ─── Booking Timeline ───
+def _record_booking_step(booking_id: str, step: str, correlation_id: str, details: dict = None):
+    """
+    Записує крок у Booking Timeline для відстеження прогресу процесу.
+    Не кидає виняток при помилці — не блокує основну логіку.
+    """
+    if not booking_id:
+        return
+    try:
+        booking_ref = _db.collection("bookings").document(booking_id)
+        booking_ref.set({
+            "current_step":   step,
+            "correlation_id": correlation_id,
+            "updated_at":     datetime.now(timezone.utc).isoformat(),
+        }, merge=True) #  merge=True: не перезаписуємо решту полів бронювання — dispatcher бачить тільки свої кроки, а не весь документ.
+        booking_ref.collection("timeline").add({
+            "step":      step,
+            "details":   details or {},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as e:
+        print(f"[WARNING] Failed to record booking step: {e} | booking_id={booking_id}")
+
 # ─── REST-виклик email-sender ───
 def _call_email_sender(endpoint: str, payload: dict, event_id: str):
     """
@@ -72,6 +95,9 @@ def _call_email_sender(endpoint: str, payload: dict, event_id: str):
 
 # ─── Обробники подій ───
 def _dispatch_booking_created(event: dict, event_id: str):
+    booking_id     = event["booking_id"]
+    correlation_id = event.get("correlation_id", event_id)  # fallback на event_id
+
     payload = {
         "recipient":    event["user_id"],
         "user_name":    event.get("user_name", "Клієнт"),
@@ -84,7 +110,10 @@ def _dispatch_booking_created(event: dict, event_id: str):
         "end_date":     event["end_date"],
         "price":        event.get('price', '—')
     }
+    _record_booking_step(booking_id, "DISPATCHER_RECEIVED", correlation_id)
     _call_email_sender("/send-booking-email", payload, event_id)
+    _record_booking_step(booking_id, "EMAIL_SENT", correlation_id,
+                         details={"recipient": event.get("user_id")})
 
 def _dispatch_apartment_added(event: dict, event_id: str):
     if not ADMIN_EMAIL:
@@ -154,8 +183,9 @@ def main(request: Request):
         print(f"[ERROR] Invalid message format: {e} | event_id={event_id}")
         return "OK", 200
 
-    event_type = payload.get("event_type")
-    print(f"[INFO] Processing event_type={event_type} | event_id={event_id}")
+    event_type     = payload.get("event_type")
+    correlation_id = payload.get("correlation_id", event_id)
+    print(f"[INFO] Processing event_type={event_type} | event_id={event_id} | correlation_id={correlation_id}")
 
     # 5. Маршрутизація з обробкою помилок
     try:
