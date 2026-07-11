@@ -116,16 +116,17 @@ resource "google_service_account_iam_member" "functions_sa_user" {
 }
 
 # Додаткові права для функцій
-resource "google_project_iam_member" "function_sa_token_creator" {
-  project = var.project_id
-  role    = "roles/iam.serviceAccountTokenCreator"
-  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
-}
-
 # Права на створення підписок
 resource "google_project_iam_member" "function_sa_subscription_admin" {
   project = var.project_id
   role    = "roles/pubsub.admin"
+  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
+}
+
+# Створення токену для авторизації для функції диспетчера
+resource "google_project_iam_member" "function_sa_token_creator" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountTokenCreator"
   member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
 }
 
@@ -158,7 +159,6 @@ resource "google_service_account_iam_member" "pubsub_agent_token_creator" {
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = google_project_service_identity.pubsub_agent.member
 }
-
 
 # Створення Google Cloud Storage bucket для статичного сайту
 resource "google_storage_bucket" "static_site" {
@@ -269,9 +269,11 @@ resource "google_pubsub_subscription" "main_subscription" {
   ]
 }
 
+# Підписка для диспетчера
 resource "google_pubsub_subscription" "dispatcher_push_sub" {
-  name  = "dispatcher-push-sub"
-  topic = google_pubsub_topic.main_topic.name
+  name    = "dispatcher-push-sub"
+  topic   = google_pubsub_topic.main_topic.name
+  project = var.project_id
 
   ack_deadline_seconds = 60
 
@@ -307,7 +309,8 @@ resource "google_pubsub_subscription" "dispatcher_push_sub" {
   depends_on = [
     google_pubsub_topic_iam_member.pubsub_dlq_publisher,
     google_service_account_iam_member.pubsub_agent_token_creator,
-    google_cloudfunctions_function.pubsub_dispatcher
+    google_cloudfunctions_function.pubsub_dispatcher,
+    google_pubsub_topic.main_topic
   ]
 }
 
@@ -536,7 +539,7 @@ resource "google_storage_bucket_object" "dispatcher_function_zip" {
 
 resource "google_cloudfunctions_function" "pubsub_dispatcher" {
   name        = "pubsub_dispatcher"
-  description = "Підписується на booking-events та викликає send_email по REST"
+  description = "Підписується на booking-events (dispatcher_push_sub) та викликає send_email по REST"
   runtime     = "python310"
   entry_point = "main"
   available_memory_mb = 256
