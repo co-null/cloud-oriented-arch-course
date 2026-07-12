@@ -5,3 +5,5 @@ mailgun_domain = "sandboxa25a788df9fe48608631dad560a0bcf3.mailgun.org"
 topic_name = "booking-events"
 admin_email = "dolris@ukr.net"
 alert_email = "dolris@ukr.net"
+watchdog_timeout_minutes = 30
+watchdog_schedule        = "*/5 * * * *"

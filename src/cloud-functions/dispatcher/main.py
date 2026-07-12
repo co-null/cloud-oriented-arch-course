@@ -8,9 +8,12 @@ from google.cloud import firestore
 from datetime import datetime, timezone
 from flask import Request
 
-# ─── Ініціалізація (один раз при cold start) ───
+EMAIL_SENDER_URL = os.environ.get("EMAIL_SENDER_URL")
+ADMIN_EMAIL      = os.environ.get("ADMIN_EMAIL")
+PROJECT_ID       = os.environ.get("GCP_PROJECT")
 
-_db = firestore.Client()
+# ─── Ініціалізація (один раз при cold start) ───
+_db = firestore.Client(project=PROJECT_ID)
 
 def _create_session() -> requests.Session:
     session = requests.Session()
@@ -24,10 +27,6 @@ def _create_session() -> requests.Session:
     return session
 
 _http = _create_session()
-
-EMAIL_SENDER_URL = os.environ.get("EMAIL_SENDER_URL")
-ADMIN_EMAIL      = os.environ.get("ADMIN_EMAIL")
-PROJECT_ID       = os.environ.get("GCP_PROJECT")
 
 # ─── Idempotency helpers ───
 def _is_duplicate(event_id: str) -> bool:
@@ -95,14 +94,14 @@ def _call_email_sender(endpoint: str, payload: dict, event_id: str):
 
 # ─── Обробники подій ───
 def _dispatch_booking_created(event: dict, event_id: str):
-    booking_id     = event["booking_id"]
+    booking_id     = event.get("booking_id", event_id)
     correlation_id = event.get("correlation_id", event_id)  # fallback на event_id
 
     payload = {
         "recipient":    event["user_id"],
         "user_name":    event.get("user_name", "Клієнт"),
-        "booking_id":   event["booking_id"],
-        "apartment_id": event["apartment_id"],
+        "booking_id":   event.get("booking_id", event_id),
+        "apartment_id": event.get("apartment_id", event_id),
         "description":  event.get("description", "не вказано"),
         "rooms":        event.get("rooms", "не вказано"),
         "address":      event.get("address", "не вказано"),
