@@ -576,6 +576,14 @@ resource "google_cloudfunctions_function_iam_member" "dispatcher_invoker" {
   member         = google_project_service_identity.pubsub_agent.member
 }
 
+resource "google_cloudfunctions_function_iam_member" "dispatcher_sa_invoker" {
+  project        = var.project_id
+  region         = var.region
+  cloud_function = google_cloudfunctions_function.pubsub_dispatcher.name
+  role           = "roles/cloudfunctions.invoker"
+  member         = "serviceAccount:${google_service_account.dispatcher_sa.email}"
+}
+
 # dlq-handler
 # Завантаження (копіювання/оновлення) функції (як архіву) для dlq-handler з локальної директорії у bucket для функції
 resource "google_storage_bucket_object" "dlq_handler_function_zip" {
