@@ -133,7 +133,7 @@ def apartments():
                     'event_type': 'apartment_added',
                     'user_id': user.get("user"),
                     'apartment_id': doc_ref.id, 
-                    'timestamp': datetime.now(timezone.utc).isoformat()
+                    'timestamp':  firestore.SERVER_TIMESTAMP
                 })
 
             # Логування створення

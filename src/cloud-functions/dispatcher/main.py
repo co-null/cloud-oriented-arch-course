@@ -52,12 +52,12 @@ def _record_booking_step(booking_id: str, step: str, correlation_id: str, detail
         booking_ref.set({
             "current_step":   step,
             "correlation_id": correlation_id,
-            "updated_at":     datetime.now(timezone.utc).isoformat(),
+            "updated_at":     firestore.SERVER_TIMESTAMP,
         }, merge=True) #  merge=True: не перезаписуємо решту полів бронювання — dispatcher бачить тільки свої кроки, а не весь документ.
         booking_ref.collection("timeline").add({
             "step":      step,
             "details":   details or {},
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": firestore.SERVER_TIMESTAMP,
         })
     except Exception as e:
         print(f"[WARNING] Failed to record booking step: {e} | booking_id={booking_id}")

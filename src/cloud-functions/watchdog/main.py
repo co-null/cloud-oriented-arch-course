@@ -27,7 +27,7 @@ def slog(severity: str, message: str, **extra):
         "severity": severity,
         "message":  message,
         "function": "watchdog",
-        "ts":       datetime.now(timezone.utc).isoformat() + "Z",
+        "ts":       datetime.now(timezone.utc).isoformat(),
         **extra
     }
     print(json.dumps(entry, ensure_ascii=False, default=str))
@@ -67,11 +67,9 @@ def check_stuck_bookings(request):
             if not updated_at:
                 continue
 
-            # Конвертуємо Firestore Timestamp → naive datetime
+            # Конвертуємо Firestore Timestamp → timezone-aware datetime в UTC
             if hasattr(updated_at, 'timestamp'):
                 updated_dt = datetime.fromtimestamp(updated_at.timestamp(), tz=timezone.utc)
-            elif hasattr(updated_at, 'tzinfo') and updated_at.tzinfo:
-                updated_dt = updated_at.astimezone(timezone.utc).replace(tzinfo=None)
             else:
                 continue
 

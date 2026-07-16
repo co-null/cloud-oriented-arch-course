@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import os, requests, logging, uuid, json
 from google.cloud import pubsub_v1
 from google.api_core import exceptions
-import logging
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -183,31 +183,46 @@ def create_booking(user_id):
             conflict = [doc for doc in conflict_query.stream(transaction=transaction)]
             if conflict:
                 raise Exception('Квартира вже заброньована на ці дати')
-
-            booking_data = {
-                'user_id': user_id,
-                'apartment_id': apartment_id,
-                'address': apartment_doc.get('address'),
-                'description': apartment_doc.get('description'),
-                'rooms': apartment_doc.get('rooms'),
-                'price': apartment_doc.get('price'),
-                'start_date': start_date,
-                'end_date': end_date,
-                'created_at': datetime.now(timezone.utc).isoformat()
-            }
+            
             # Створюємо новий документ з унікальним ID
-            new_id = str(uuid.uuid4())
-            doc_ref = bookings_ref.document(new_id)
+            booking_id     = str(uuid.uuid4())
+            correlation_id = str(uuid.uuid4())  # генеруємо ОДИН РАЗ
+            
+            booking_data = {
+                'booking_id':     booking_id,
+                'correlation_id': correlation_id,  # зберігаємо для майбутніх запитів
+                'status':         'processing',
+                'current_step':   'BOOKING_RECEIVED',
+                'created_at':     firestore.SERVER_TIMESTAMP,
+                'updated_at':     firestore.SERVER_TIMESTAMP,
+                'user_id':        user_id,
+                'owner_email':    apartment_doc.get('user_id'),
+                'apartment_id':   apartment_id,
+                'address':        apartment_doc.get('address'),
+                'description':    apartment_doc.get('description'),
+                'rooms':          apartment_doc.get('rooms'),
+                'price':          apartment_doc.get('price'),
+                'start_date':     start_date,
+                'end_date':       end_date,
+            }
+            
+            doc_ref = bookings_ref.document(booking_id)
             transaction.set(doc_ref, booking_data)
-            return new_id, booking_data
+            return booking_id, booking_data
         
         try:
             transaction = db.transaction()
             booking_id, booking_data = transaction_func(transaction)
 
             # Публікація події в Pub/Sub
+            ## Публікуємо подію з correlation_id
+            event_id       = str(uuid.uuid4())
+            booking_data['event_id'] = event_id  # додаємо event_id до даних бронювання
             booking_data['event_type'] = 'booking_created'
-            booking_data['booking_id'] = booking_id
+            booking_data['version'] = '1.0'
+            booking_data['causation_id'] = None  # перша подія, немає причини
+            booking_data['source'] = 'bookings_api'
+
             message_id = add_message_to_topic(booking_data)
 
             # Логування успішної спроби
