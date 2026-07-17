@@ -61,5 +61,5 @@ resource "google_storage_notification" "csv_import_notification" {
   # Фільтруємо: тільки файли в imports/, не в quarantine/
   object_name_prefix = "imports/"
 
-  depends_on = [google_pubsub_topic_iam_member.gcs_can_publish]
+  depends_on = [google_pubsub_topic_iam_member.gcs_csv_imports_publisher]
 }
