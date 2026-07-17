@@ -67,7 +67,6 @@ def log(severity: str, message: str, **kwargs):
         "severity": severity,
         "message": message,
         "function": "import_apartments",
-        "environment": ENVIRONMENT,
         **kwargs
     }
     print(json.dumps(entry))
