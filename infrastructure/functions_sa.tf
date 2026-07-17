@@ -123,7 +123,7 @@ resource "google_project_iam_member" "importer_firestore" {
 
 # Може публікувати в існуючий топік подій квартир
 resource "google_pubsub_topic_iam_member" "importer_apartment_events_publisher" {
-  topic  = var.apartment_events_topic
+  topic  = var.topic_name
   role   = "roles/pubsub.publisher"
   member = "serviceAccount:${google_service_account.csv_importer_sa.email}"
 }

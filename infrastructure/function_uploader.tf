@@ -67,9 +67,9 @@ resource "google_cloudfunctions_function" "import_apartments" {
   timeout             = 540   # 9 хвилин — максимум для Gen 1
 
   environment_variables = {
-    IMPORT_BUCKET          = google_storage_bucket.apartments_imports.name
-    GCP_PROJECT            = var.project_id
-    APARTMENT_EVENTS_TOPIC = var.topic_name
+    IMPORT_BUCKET = google_storage_bucket.apartments_imports.name
+    GCP_PROJECT   = var.project_id
+    TOPIC_NAME    = var.topic_name
   }
 
   depends_on = [

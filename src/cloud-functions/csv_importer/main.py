@@ -44,9 +44,9 @@ def get_publisher():
 
 
 # ─── Конфігурація ─────────────────────────────────────────
-IMPORT_BUCKET          = os.environ.get("IMPORT_BUCKET")
-APARTMENT_EVENTS_TOPIC = os.environ.get("APARTMENT_EVENTS_TOPIC")
-GCP_PROJECT            = os.environ.get("GCP_PROJECT")
+IMPORT_BUCKET = os.environ.get("IMPORT_BUCKET")
+TOPIC_NAME    = os.environ.get("TOPIC_NAME")
+GCP_PROJECT   = os.environ.get("GCP_PROJECT")
 
 REQUIRED_COLUMNS = {"address", "price", "rooms", "description", "owner_email"}
 MAX_ROWS         = 5_000
@@ -218,7 +218,7 @@ def publish_apartment_events(rows: list[dict], import_id: str):
     Новоімпортовані квартири проходять через той самий dispatcher.
     """
     publisher = get_publisher()
-    topic_path = publisher.topic_path(GCP_PROJECT, APARTMENT_EVENTS_TOPIC)
+    topic_path = publisher.topic_path(GCP_PROJECT, TOPIC_NAME)
     
     for row in rows:
         unique_key = f"{row['owner_email']}_{row['rooms']}_{row['address']}"
