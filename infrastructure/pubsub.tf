@@ -93,7 +93,7 @@ resource "google_pubsub_subscription" "dispatcher_push_sub" {
 
   # IAM на DLQ та права агента мають бути готові до створення підписки
   depends_on = [
-    google_pubsub_topic_iam_member.pubsub_dlq_publisher,
+    google_pubsub_topic_iam_member.pubsub_agent_dlq_publisher,
     google_service_account_iam_member.pubsub_agent_token_creator,
     google_cloudfunctions_function.pubsub_dispatcher,
     google_pubsub_topic.main_topic
