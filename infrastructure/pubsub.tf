@@ -1,44 +1,32 @@
+# ═══════════════════════════════════════════════════════════
+# PUB/SUB ТОПІКИ ТА ПІДПИСКИ
+#
+# IAM права — в iam.tf
+# ═══════════════════════════════════════════════════════════
+
+# ─── Основний event bus ────────────────────────────────────
+
 # Додання брокера Pub-Sub
 # Основний топік для повідомлень
 resource "google_pubsub_topic" "main_topic" {
   name    = var.topic_name
   project = var.project_id
-  
   # Налаштування retention
   message_retention_duration = "604800s" # 7 днів
-  
   depends_on = [google_project_service.apis]
 }
+
 
 # DLQ топік
 resource "google_pubsub_topic" "notification_dlq" {
   name                       = "notification-dlq"
   project                    = var.project_id
-
   # Налаштування retention
   message_retention_duration = "604800s"
-
   depends_on                 = [google_project_service.apis]
 }
 
-# Pub/Sub сервісний агент повинен мати право публікувати в DLQ
-resource "google_pubsub_topic_iam_member" "pubsub_dlq_publisher" {
-  project = var.project_id
-  topic   = google_pubsub_topic.notification_dlq.name
-  role    = "roles/pubsub.publisher"
-  member  = google_project_service_identity.pubsub_agent.member
-}
-
-# Pub/Sub service agent може ACK повідомлення в основній підписці
-# (потрібно для переміщення в DLQ)
-resource "google_pubsub_subscription_iam_member" "pubsub_agent_subscriber" {
-  project      = var.project_id
-  subscription = google_pubsub_subscription.dispatcher_push_sub.name
-  role         = "roles/pubsub.subscriber"
-  member       = google_project_service_identity.pubsub_agent.member
-}
-
-# Основна підписка
+# Підписка для читання подій (pull, для messages функції)
 resource "google_pubsub_subscription" "main_subscription" {
   name    = "${var.topic_name}-subscription"
   topic   = google_pubsub_topic.main_topic.name
@@ -67,7 +55,7 @@ resource "google_pubsub_subscription" "main_subscription" {
   ]
 }
 
-# Підписка для диспетчера
+# Push-підписка для dispatcher (HTTP push з OIDC)
 resource "google_pubsub_subscription" "dispatcher_push_sub" {
   name    = "dispatcher-push-sub"
   topic   = google_pubsub_topic.main_topic.name
@@ -112,57 +100,7 @@ resource "google_pubsub_subscription" "dispatcher_push_sub" {
   ]
 }
 
-
-# IAM bindings для топіків
-resource "google_pubsub_topic_iam_binding" "publisher_binding" {
-  topic   = google_pubsub_topic.main_topic.name
-  role    = "roles/pubsub.publisher"
-  project = var.project_id
-  
-  members = [
-    "serviceAccount:${google_service_account.pubsub_function_sa.email}",
-    "serviceAccount:${google_service_account.pubsub_publisher_sa.email}",
-    "serviceAccount:${google_service_account.csv_importer_sa.email}"
-  ]
-}
-
-resource "google_pubsub_topic_iam_binding" "viewer_binding" {
-  topic   = google_pubsub_topic.main_topic.name
-  role    = "roles/pubsub.viewer"
-  project = var.project_id
-  
-  members = [
-    "serviceAccount:${google_service_account.pubsub_function_sa.email}",
-    "serviceAccount:${google_service_account.pubsub_subscriber_sa.email}"
-  ]
-}
-
-# IAM bindings для підписок
-resource "google_pubsub_subscription_iam_binding" "subscriber_binding" {
-  subscription = google_pubsub_subscription.main_subscription.name
-  role         = "roles/pubsub.subscriber"
-  project      = var.project_id
-  
-  members = [
-    "serviceAccount:${google_service_account.pubsub_function_sa.email}",
-    "serviceAccount:${google_service_account.pubsub_subscriber_sa.email}"
-  ]
-}
-
-resource "google_pubsub_subscription_iam_binding" "viewer_subscription_binding" {
-  subscription = google_pubsub_subscription.main_subscription.name
-  role         = "roles/pubsub.viewer"
-  project      = var.project_id
-  
-  members = [
-    "serviceAccount:${google_service_account.pubsub_function_sa.email}",
-    "serviceAccount:${google_service_account.pubsub_subscriber_sa.email}"
-  ]
-}
-
-# ═══════════════════════════════════════════════════════════
-# Pub/Sub для GCS Notifications
-# ═══════════════════════════════════════════════════════════
+# ─── CSV Import pipeline ───────────────────────────────────
 
 # Топік для подій завантаження CSV
 resource "google_pubsub_topic" "csv_imports" {
@@ -200,31 +138,10 @@ resource "google_pubsub_subscription" "csv_import_processor" {
     dead_letter_topic     = google_pubsub_topic.csv_imports_dlq.id
     max_delivery_attempts = 5
   }
+
+  depends_on = [
+    google_pubsub_topic.csv_imports,
+    google_pubsub_topic.csv_imports_dlq,
+  ]
 }
   
-# ═══════════════════════════════════════════════════════════
-# GCS Notification → Pub/Sub
-# ═══════════════════════════════════════════════════════════
-
-# GCS Service Account потребує дозволу публікувати в наш топік
-data "google_storage_project_service_account" "gcs_sa" {
-  depends_on = [google_project_service.apis]
-}
-
-resource "google_pubsub_topic_iam_member" "gcs_can_publish" {
-  topic  = google_pubsub_topic.csv_imports.name
-  role   = "roles/pubsub.publisher"
-  member = "serviceAccount:${data.google_storage_project_service_account.gcs_sa.email_address}"
-}
-
-# Налаштовуємо notification: тільки OBJECT_FINALIZE, тільки папка imports/
-resource "google_storage_notification" "csv_import_notification" {
-  bucket         = google_storage_bucket.apartments_imports.name
-  payload_format = "JSON_API_V1"
-  topic          = google_pubsub_topic.csv_imports.id
-  event_types    = ["OBJECT_FINALIZE"]
-  # Фільтруємо: тільки файли в imports/, не в quarantine/
-  object_name_prefix = "imports/"
-
-  depends_on = [google_pubsub_topic_iam_member.gcs_can_publish]
-}

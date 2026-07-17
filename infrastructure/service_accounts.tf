@@ -1,4 +1,11 @@
-# Service Account для Cloud Functions
+# ═══════════════════════════════════════════════════════════
+# SERVICE ACCOUNTS
+#
+# Цей файл містить ТІЛЬКИ визначення service accounts.
+# Всі IAM права — в iam.tf
+# ═══════════════════════════════════════════════════════════
+
+# Загальний SA для Cloud Functions що працюють з Pub/Sub
 resource "google_service_account" "pubsub_function_sa" {
   account_id   = "pubsub-function-sa"
   display_name = "Pub/Sub Cloud Function Service Account"
@@ -6,7 +13,7 @@ resource "google_service_account" "pubsub_function_sa" {
   project      = var.project_id
 }
 
-# Service Account для Publisher
+# SA виключно для публікації повідомлень (не використовується функціями напряму)
 resource "google_service_account" "pubsub_publisher_sa" {
   account_id   = "pubsub-publisher-sa"
   display_name = "Pub/Sub Publisher Service Account"
@@ -14,7 +21,7 @@ resource "google_service_account" "pubsub_publisher_sa" {
   project      = var.project_id
 }
 
-# Service Account для Subscriber
+# SA для читання підписок
 resource "google_service_account" "pubsub_subscriber_sa" {
   account_id   = "pubsub-subscriber-sa"
   display_name = "Pub/Sub Subscriber Service Account"
@@ -22,11 +29,19 @@ resource "google_service_account" "pubsub_subscriber_sa" {
   project      = var.project_id
 }
 
-# Service Account для Dispatcher
+# SA для dispatcher функції (окремий через OIDC push-підписку)
 resource "google_service_account" "dispatcher_sa" {
   account_id   = "pubsub-dispatcher-sa"
   display_name = "Pub/Sub Dispatcher Function SA"
   project      = var.project_id  # явно вказуємо project
+}
+
+# SA для Cloud Scheduler (watchdog jobs)
+resource "google_service_account" "scheduler_sa" {
+  account_id   = "scheduler-sa"
+  display_name = "Cloud Scheduler SA"
+  description  = "SA для виклику Cloud Functions через Cloud Scheduler"
+  project      = var.project_id
 }
 
 # SA для функції генерації Signed URL

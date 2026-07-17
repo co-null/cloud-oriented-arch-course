@@ -1,33 +1,3 @@
-# IAM права  для Dispatcher
-# Dispatcher: запис логів
-resource "google_project_iam_member" "dispatcher_log_writer" {
-  project = var.project_id
-  role    = "roles/logging.logWriter"
-  member  = "serviceAccount:${google_service_account.dispatcher_sa.email}"
-}
-
-# Dispatcher: запис метрик
-resource "google_project_iam_member" "dispatcher_metric_writer" {
-  project = var.project_id
-  role    = "roles/monitoring.metricWriter"
-  member  = "serviceAccount:${google_service_account.dispatcher_sa.email}"
-}
-
-# Dispatcher: Firestore для idempotency store
-resource "google_project_iam_member" "dispatcher_firestore" {
-  project = var.project_id
-  role    = "roles/datastore.user"
-  member  = "serviceAccount:${google_service_account.dispatcher_sa.email}"
-}
-
-# Dispatcher SA може генерувати OIDC-токени для push-підписки
-# Потрібно щоб Pub/Sub міг підписувати запити від імені цього SA
-resource "google_service_account_iam_member" "pubsub_agent_token_creator" {
-  service_account_id = google_service_account.dispatcher_sa.name
-  role               = "roles/iam.serviceAccountTokenCreator"
-  member             = google_project_service_identity.pubsub_agent.member
-}
-
 # Диспетчер
 # Завантаження (копіювання/оновлення) функції (як архіву) для dispatcher з локальної директорії у bucket для функції
 resource "google_storage_bucket_object" "dispatcher_function_zip" {

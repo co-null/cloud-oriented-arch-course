@@ -1,4 +1,7 @@
-# Використання провайдера Google Cloud
+# ═══════════════════════════════════════════════════════════
+# ПРОВАЙДЕРИ
+# ═══════════════════════════════════════════════════════════
+
 provider "google" {
   project = var.project_id
   region  = var.region
@@ -9,19 +12,16 @@ provider "google-beta" {
   region  = var.region
 }
 
-# 
+# ═══════════════════════════════════════════════════════════
 # АКТИВАЦІЯ GCP API
 #
-# GCP за замовчуванням вимикає більшість API у новому проєкті.
-# Terraform активує їх автоматично перед деплоєм ресурсів.
-#
-# disable_on_destroy = false означає, що при знищенні інфраструктури
-# через `terraform destroy` API залишаться увімкненими. Це безпечніше,
-# ніж їх вимикати — інші ресурси в проєкті можуть від них залежати.
-# 
+# disable_on_destroy = false: при terraform destroy API залишаються
+# увімкненими — інші ресурси проєкту можуть від них залежати.
+# ═══════════════════════════════════════════════════════════
+
 resource "google_project_service" "apis" {
   for_each = toset([
-# Cloud Functions Gen 1 — основний сервіс деплою функцій
+    # Cloud Functions Gen 1 — основний сервіс деплою функцій
     "cloudfunctions.googleapis.com",
 
     # Pub/Sub — черга подій; топік apartment-events вже існує з попередньої теми
@@ -47,13 +47,15 @@ resource "google_project_service" "apis" {
 
     "storage.googleapis.com",
     "artifactregistry.googleapis.com",
-    "iamcredentials.googleapis.com"
+    "iamcredentials.googleapis.com",
+    "cloudscheduler.googleapis.com"
   ])
 
   service            = each.key
   disable_on_destroy = false
 }
 
+# Pub/Sub Service Identity — потрібен для DLQ та push-підписок
 resource "google_project_service_identity" "pubsub_agent" {
   provider = google-beta
   project  = var.project_id
@@ -63,6 +65,9 @@ resource "google_project_service_identity" "pubsub_agent" {
   depends_on = [google_project_service.apis]
 }
 
+# ═══════════════════════════════════════════════════════════
+# STORAGE BUCKETS — загальні
+# ═══════════════════════════════════════════════════════════
 # Створення Google Cloud Storage bucket для статичного сайту
 resource "google_storage_bucket" "static_site" {
   name     = var.bucket_name
@@ -74,48 +79,6 @@ resource "google_storage_bucket" "static_site" {
   }
 
   force_destroy = true # Дозволяє видаляти bucket разом із файлами
-}
-
-# Bucket для CSV-завантажень від адміністраторів
-resource "google_storage_bucket" "apartments_imports" {
-  name                        = "${var.project_id}-apartments-imports"
-  location                    = var.region
-  uniform_bucket_level_access = true
-  force_destroy               = false
-
-  # Soft Delete: вимкнено — CSV-файли є тимчасовими
-  soft_delete_policy {
-    retention_duration_seconds = 0
-  }
-
-  # Версіонування: увімкнено для аудиту завантажень
-  versioning {
-    enabled = true
-  }
-
-  # Lifecycle: зберігаємо тільки 3 версії, видаляємо все через 90 днів
-  lifecycle_rule {
-    action { type = "Delete" }
-    condition {
-      num_newer_versions = 3
-      with_state         = "ARCHIVED"
-    }
-  }
-
-  lifecycle_rule {
-    action { type = "Delete" }
-    condition { age = 90 }
-  }
-
-  # CORS для завантаження з браузерного admin UI
-  cors {
-    origin          = ["*"] # не рекомендовано для production!
-    method          = ["PUT", "OPTIONS"]
-    response_header = ["Content-Type", "ETag", "X-Goog-Upload-Status"]
-    max_age_seconds = 3600
-  }
-
-  depends_on = [google_project_service.apis]
 }
 
 # Відкриємо сторінку для всіх
@@ -150,10 +113,4 @@ resource "google_storage_bucket" "function_bucket" {
   name     = "${var.project_id}-function-bucket"
   location = var.region
   force_destroy = true 
-}
-
-# Вивід URL для bucket
-output "static_site_url" {
-  description = "URL для доступу до статичного сайту"
-  value       = "http://${google_storage_bucket.static_site.name}.storage.googleapis.com/index.html"
 }

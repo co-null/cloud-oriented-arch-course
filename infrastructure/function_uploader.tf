@@ -1,3 +1,4 @@
+
 # Завантаження файлів
 resource "google_storage_bucket_object" "url_generator_zip" {
   name   = "url_generator.zip"
