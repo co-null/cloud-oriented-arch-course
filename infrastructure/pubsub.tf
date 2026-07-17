@@ -207,7 +207,7 @@ resource "google_pubsub_subscription" "csv_import_processor" {
 
 # GCS Service Account потребує дозволу публікувати в наш топік
 data "google_storage_project_service_account" "gcs_sa" {
-  depends_on = [google_project_service.required_apis]
+  depends_on = [google_project_service.apis]
 }
 
 resource "google_pubsub_topic_iam_member" "gcs_can_publish" {
