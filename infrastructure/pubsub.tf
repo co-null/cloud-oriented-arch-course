@@ -121,7 +121,8 @@ resource "google_pubsub_topic_iam_binding" "publisher_binding" {
   
   members = [
     "serviceAccount:${google_service_account.pubsub_function_sa.email}",
-    "serviceAccount:${google_service_account.pubsub_publisher_sa.email}"
+    "serviceAccount:${google_service_account.pubsub_publisher_sa.email}"б
+    "serviceAccount:${google_service_account.csv_importer_sa.email}",
   ]
 }
 

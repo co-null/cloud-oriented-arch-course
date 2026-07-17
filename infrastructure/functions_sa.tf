@@ -121,13 +121,6 @@ resource "google_project_iam_member" "importer_firestore" {
   member  = "serviceAccount:${google_service_account.csv_importer_sa.email}"
 }
 
-# Може публікувати в існуючий топік подій квартир
-resource "google_pubsub_topic_iam_member" "importer_apartment_events_publisher" {
-  topic  = var.topic_name
-  role   = "roles/pubsub.publisher"
-  member = "serviceAccount:${google_service_account.csv_importer_sa.email}"
-}
-
 # Може читати з Pub/Sub subscription (потрібно для Cloud Function)
 resource "google_pubsub_subscription_iam_member" "importer_subscriber" {
   subscription = google_pubsub_subscription.csv_import_processor.name
