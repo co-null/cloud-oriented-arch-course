@@ -102,7 +102,7 @@ resource "google_cloud_scheduler_job" "watchdog_job" {
   }
 
   depends_on = [
-    google_project_service.scheduler_api,
+    google_project_service.apis,
     google_cloudfunctions_function.watchdog
   ]
 }
