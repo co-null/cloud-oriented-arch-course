@@ -199,6 +199,7 @@ resource "google_pubsub_subscription" "csv_import_processor" {
     dead_letter_topic     = google_pubsub_topic.csv_imports_dlq.id
     max_delivery_attempts = 5
   }
+}
   
 # ═══════════════════════════════════════════════════════════
 # GCS Notification → Pub/Sub
