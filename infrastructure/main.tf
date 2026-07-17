@@ -98,7 +98,7 @@ resource "google_storage_bucket" "apartments_imports" {
     action { type = "Delete" }
     condition {
       num_newer_versions = 3
-      is_live            = false
+      with_state         = "ARCHIVED"
     }
   }
 
