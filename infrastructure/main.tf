@@ -109,7 +109,7 @@ resource "google_storage_bucket" "apartments_imports" {
 
   # CORS для завантаження з браузерного admin UI
   cors {
-    origin          = [*] # не рекомендовано для production!
+    origin          = ['*'] # не рекомендовано для production!
     method          = ["PUT", "OPTIONS"]
     response_header = ["Content-Type", "ETag", "X-Goog-Upload-Status"]
     max_age_seconds = 3600
