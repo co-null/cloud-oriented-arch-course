@@ -43,7 +43,11 @@ resource "google_project_service" "apis" {
     "monitoring.googleapis.com",
 
     # Cloud Logging — структуроване логування функцій
-    "logging.googleapis.com"
+    "logging.googleapis.com",
+
+    "storage.googleapis.com",
+    "artifactregistry.googleapis.com",
+    "iamcredentials.googleapis.com"
   ])
 
   service            = each.key
@@ -70,6 +74,48 @@ resource "google_storage_bucket" "static_site" {
   }
 
   force_destroy = true # Дозволяє видаляти bucket разом із файлами
+}
+
+# Bucket для CSV-завантажень від адміністраторів
+resource "google_storage_bucket" "apartments_imports" {
+  name                        = "${var.project_id}-apartments-imports"
+  location                    = var.region
+  uniform_bucket_level_access = true
+  force_destroy               = false
+
+  # Soft Delete: вимкнено — CSV-файли є тимчасовими
+  soft_delete_policy {
+    retention_duration_seconds = 0
+  }
+
+  # Версіонування: увімкнено для аудиту завантажень
+  versioning {
+    enabled = true
+  }
+
+  # Lifecycle: зберігаємо тільки 3 версії, видаляємо все через 90 днів
+  lifecycle_rule {
+    action { type = "Delete" }
+    condition {
+      num_newer_versions = 3
+      is_live            = false
+    }
+  }
+
+  lifecycle_rule {
+    action { type = "Delete" }
+    condition { age = 90 }
+  }
+
+  # CORS для завантаження з браузерного admin UI
+  cors {
+    origin          = [*] # не рекомендовано для production!
+    method          = ["PUT", "OPTIONS"]
+    response_header = ["Content-Type", "ETag", "X-Goog-Upload-Status"]
+    max_age_seconds = 3600
+  }
+
+  depends_on = [google_project_service.apis]
 }
 
 # Відкриємо сторінку для всіх

@@ -67,3 +67,70 @@ resource "google_project_iam_member" "function_sa_token_creator" {
   role    = "roles/iam.serviceAccountTokenCreator"
   member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
 }
+
+# ─── Права для url_generator_sa ──────────────────────────────────────────────
+
+# Може писати об'єкти в import bucket (для підпису URL)
+resource "google_storage_bucket_iam_member" "url_gen_bucket_creator" {
+  bucket = google_storage_bucket.apartments_imports.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${google_service_account.url_generator_sa.email}"
+}
+
+# Keyless signing: може підписувати від свого імені
+resource "google_service_account_iam_member" "url_gen_token_creator" {
+  service_account_id = google_service_account.url_generator_sa.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.url_generator_sa.email}"
+}
+
+# Може писати в Firestore (для запису pending-статусу)
+resource "google_project_iam_member" "url_gen_firestore" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.url_generator_sa.email}"
+}
+
+# ─── Права для csv_importer_sa ───────────────────────────────────────────────
+
+# Може читати файли з import bucket
+resource "google_storage_bucket_iam_member" "importer_bucket_reader" {
+  bucket = google_storage_bucket.apartments_imports.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.csv_importer_sa.email}"
+}
+
+# Може також писати (для переміщення файлів у quarantine/)
+resource "google_storage_bucket_iam_member" "importer_bucket_creator" {
+  bucket = google_storage_bucket.apartments_imports.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${google_service_account.csv_importer_sa.email}"
+}
+
+# Може видаляти (для переміщення в quarantine)
+resource "google_storage_bucket_iam_member" "importer_bucket_admin" {
+  bucket = google_storage_bucket.apartments_imports.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.csv_importer_sa.email}"
+}
+
+# Firestore: читання і запис
+resource "google_project_iam_member" "importer_firestore" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.csv_importer_sa.email}"
+}
+
+# Може публікувати в існуючий топік подій квартир
+resource "google_pubsub_topic_iam_member" "importer_apartment_events_publisher" {
+  topic  = var.apartment_events_topic
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.csv_importer_sa.email}"
+}
+
+# Може читати з Pub/Sub subscription (потрібно для Cloud Function)
+resource "google_pubsub_subscription_iam_member" "importer_subscriber" {
+  subscription = google_pubsub_subscription.csv_import_processor.name
+  role         = "roles/pubsub.subscriber"
+  member       = "serviceAccount:${google_service_account.csv_importer_sa.email}"
+}

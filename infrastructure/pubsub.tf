@@ -158,3 +158,71 @@ resource "google_pubsub_subscription_iam_binding" "viewer_subscription_binding" 
     "serviceAccount:${google_service_account.pubsub_subscriber_sa.email}"
   ]
 }
+
+# ═══════════════════════════════════════════════════════════
+# Pub/Sub для GCS Notifications
+# ═══════════════════════════════════════════════════════════
+
+# Топік для подій завантаження CSV
+resource "google_pubsub_topic" "csv_imports" {
+  name = "apartments-csv-imports"
+
+  # Зберігаємо повідомлення 7 днів
+  # (для DLQ і потенційного replay)
+  message_retention_duration = "604800s"
+
+  depends_on = [google_project_service.apis]
+}
+
+# Dead Letter Topic для невдалих імпортів
+resource "google_pubsub_topic" "csv_imports_dlq" {
+  name                       = "apartments-csv-imports-dlq"
+  message_retention_duration = "604800s"
+}
+
+# Subscription для Cloud Function
+resource "google_pubsub_subscription" "csv_import_processor" {
+  name  = "apartments-csv-import-processor-sub"
+  topic = google_pubsub_topic.csv_imports.name
+
+  # 5 хвилин на обробку одного CSV
+  ack_deadline_seconds = 300
+
+  # Exponential backoff: починаємо з 30s, максимум 10 хвилин
+  retry_policy {
+    minimum_backoff = "30s"
+    maximum_backoff = "600s"
+  }
+
+  # Dead Letter Queue після 5 спроб
+  dead_letter_policy {
+    dead_letter_topic     = google_pubsub_topic.csv_imports_dlq.id
+    max_delivery_attempts = 5
+  }
+  
+# ═══════════════════════════════════════════════════════════
+# GCS Notification → Pub/Sub
+# ═══════════════════════════════════════════════════════════
+
+# GCS Service Account потребує дозволу публікувати в наш топік
+data "google_storage_project_service_account" "gcs_sa" {
+  depends_on = [google_project_service.required_apis]
+}
+
+resource "google_pubsub_topic_iam_member" "gcs_can_publish" {
+  topic  = google_pubsub_topic.csv_imports.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${data.google_storage_project_service_account.gcs_sa.email_address}"
+}
+
+# Налаштовуємо notification: тільки OBJECT_FINALIZE, тільки папка imports/
+resource "google_storage_notification" "csv_import_notification" {
+  bucket         = google_storage_bucket.apartments_imports.name
+  payload_format = "JSON_API_V1"
+  topic          = google_pubsub_topic.csv_imports.id
+  event_types    = ["OBJECT_FINALIZE"]
+  # Фільтруємо: тільки файли в imports/, не в quarantine/
+  object_name_prefix = "imports/"
+
+  depends_on = [google_pubsub_topic_iam_member.gcs_can_publish]
+}

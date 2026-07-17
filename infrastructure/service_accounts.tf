@@ -29,3 +29,14 @@ resource "google_service_account" "dispatcher_sa" {
   project      = var.project_id  # явно вказуємо project
 }
 
+# SA для функції генерації Signed URL
+resource "google_service_account" "url_generator_sa" {
+  account_id   = "import-url-generator-sa"
+  display_name = "SA: Import URL Generator Function"
+}
+
+# SA для функції обробки CSV
+resource "google_service_account" "csv_importer_sa" {
+  account_id   = "csv-importer-sa"
+  display_name = "SA: CSV Importer Function"
+}
