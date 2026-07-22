@@ -45,27 +45,6 @@ resource "google_project_iam_member" "function_sa_firestore_user" {
   member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
 }
 
-# Додаткові права для Firestore (якщо потрібно створювати колекції)
-resource "google_project_iam_member" "function_sa_firestore_owner" {
-  project = var.project_id
-  role    = "roles/datastore.owner"
-  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
-}
-
-# Права для Firebase Admin SDK
-resource "google_project_iam_member" "function_sa_firebase_admin" {
-  project = var.project_id
-  role    = "roles/firebase.admin"
-  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
-}
-
-# Project-level IAM для Service Accounts
-resource "google_project_iam_member" "function_sa_pubsub_admin" {
-  project = var.project_id
-  role    = "roles/pubsub.admin"
-  member  = "serviceAccount:${google_service_account.pubsub_function_sa.email}"
-}
-
 resource "google_project_iam_member" "function_sa_logging" {
   project = var.project_id
   role    = "roles/logging.logWriter"
