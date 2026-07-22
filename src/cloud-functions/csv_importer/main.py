@@ -218,25 +218,34 @@ def publish_apartment_events(rows: list[dict], import_id: str):
     """
     publisher = get_publisher()
     topic_path = publisher.topic_path(GCP_PROJECT, TOPIC_NAME)
+    attributes = {
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'function_name': 'import_apartments',
+            'project_id': GCP_PROJECT
+        }
     
     for row in rows:
         unique_key = f"{row['owner_email']}_{row['rooms']}_{row['address']}"
         apartment_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, unique_key))
+        message_data = {'address': row.get("address"),
+                        'rooms': row.get("rooms"),
+                        'price': row.get("price"),
+                        'description': row.get("description"),
+                        'event_type': 'apartment_added',
+                        "source": "csv_import",
+                        "import_id": import_id,
+                        'user_id': row.get("owner_email"),
+                        'apartment_id': apartment_id, 
+                        'timestamp':  datetime.now(timezone.utc).isoformat()
+                        }
         
-        event_payload = {
-            "event_type": "apartment_added",
-            "source": "csv_import",
-            "import_id": import_id,
-            "apartment_id": apartment_id,
-            "owner_email": row.get("owner_email"),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
+        message_json = json.dumps(message_data, ensure_ascii=False)
+        message_bytes = message_json.encode('utf-8')
+
         publisher.publish(
             topic_path,
-            data=json.dumps(event_payload).encode("utf-8"),
-            event_type="apartment.created",
-            source="csv_import"
+            data=message_bytes,
+            **attributes
         )
 
 

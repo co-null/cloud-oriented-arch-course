@@ -55,7 +55,7 @@ def add_message_to_topic(message_data, topic_name=TOPIC_NAME):
         # Додавання системних атрибутів
         attributes = {
             'timestamp': datetime.now(timezone.utc).isoformat(),
-            'function_name': 'bookings',
+            'function_name': 'apartments',
             'project_id': project_id
         }
         # Публікація повідомлення

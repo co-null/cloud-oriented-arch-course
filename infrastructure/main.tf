@@ -24,13 +24,13 @@ resource "google_project_service" "apis" {
     # Cloud Functions Gen 1 — основний сервіс деплою функцій
     "cloudfunctions.googleapis.com",
 
-    # Pub/Sub — черга подій; топік apartment-events вже існує з попередньої теми
+    # Pub/Sub — черга подій; топік booking-events вже існує з попередньої теми
     "pubsub.googleapis.com",
 
     # IAM - сервіс ролей доступу
     "iam.googleapis.com",
 
-    # Secret Manager — захищене зберігання MAILGUN_API_KEY та MAILGUN_DOMAIN
+    # Secret Manager — захищене зберігання MAILGUN_API_KEY
     "secretmanager.googleapis.com",
 
     # Cloud Build — збірка та деплой коду функцій з GCS
