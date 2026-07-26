@@ -523,7 +523,6 @@
             </thead>
             <tbody>
               ${bookings.map(b => {
-                const s = statusLabel[b.status] || { text: b.status, color: '#6b7280' };
                 return `
                   <tr>
                     <td>
