@@ -119,6 +119,27 @@ def verify_token_via_cloud_function():
         return None, make_cors_response(jsonify({"detail": "Некоректний токен"}), 401)
     return response.json(), None
 
+def _safe_serialize(data: dict) -> dict:
+        """
+        Перетворює всі Firestore-специфічні типи на JSON-сумісні.
+        Викликається для кожного документа перед jsonify().
+        """
+        result = {}
+        for key, val in data.items():
+            if val is None:
+                result[key] = None
+            elif hasattr(val, 'isoformat'):
+                # DatetimeWithNanoseconds → ISO string
+                result[key] = val.isoformat()
+            elif hasattr(val, '_seconds'):
+                # Firestore Timestamp (старіший формат)
+                result[key] = datetime.fromtimestamp(
+                    val._seconds, tz=timezone.utc
+                ).isoformat()
+            else:
+                result[key] = val
+        return result
+
 @app.route('/', methods=['POST', 'GET', 'OPTIONS'])
 def bookings():
     """Основна функція для роботи з бронюваннями"""
@@ -150,6 +171,28 @@ def create_booking(user_id):
         apartment_id = data.get('apartment_id')
         start_date = data.get('start_date')
         end_date = data.get('end_date')
+
+        # Створюємо новий документ з унікальним ID
+        booking_id     = str(uuid.uuid4())
+        correlation_id = str(uuid.uuid4())  # генеруємо ОДИН РАЗ
+
+        booking_data = {
+                'booking_id':     booking_id,
+                'correlation_id': correlation_id,  # зберігаємо для майбутніх запитів
+                'status':         'processing',
+                'current_step':   'BOOKING_RECEIVED',
+                'created_at':     firestore.SERVER_TIMESTAMP,
+                'updated_at':     firestore.SERVER_TIMESTAMP,
+                'user_id':        user_id,
+                'owner_email':    apartment_doc.get('user_id'),
+                'apartment_id':   apartment_id,
+                'address':        apartment_doc.get('address'),
+                'description':    apartment_doc.get('description'),
+                'rooms':          apartment_doc.get('rooms'),
+                'price':          apartment_doc.get('price'),
+                'start_date':     start_date,
+                'end_date':       end_date,
+            }
 
         # Валідація обов’язкових полів
         if not all([apartment_id, start_date, end_date]):
@@ -183,28 +226,6 @@ def create_booking(user_id):
             conflict = [doc for doc in conflict_query.stream(transaction=transaction)]
             if conflict:
                 raise Exception('Квартира вже заброньована на ці дати')
-            
-            # Створюємо новий документ з унікальним ID
-            booking_id     = str(uuid.uuid4())
-            correlation_id = str(uuid.uuid4())  # генеруємо ОДИН РАЗ
-            
-            booking_data = {
-                'booking_id':     booking_id,
-                'correlation_id': correlation_id,  # зберігаємо для майбутніх запитів
-                'status':         'processing',
-                'current_step':   'BOOKING_RECEIVED',
-                'created_at':     firestore.SERVER_TIMESTAMP,
-                'updated_at':     firestore.SERVER_TIMESTAMP,
-                'user_id':        user_id,
-                'owner_email':    apartment_doc.get('user_id'),
-                'apartment_id':   apartment_id,
-                'address':        apartment_doc.get('address'),
-                'description':    apartment_doc.get('description'),
-                'rooms':          apartment_doc.get('rooms'),
-                'price':          apartment_doc.get('price'),
-                'start_date':     start_date,
-                'end_date':       end_date,
-            }
             
             doc_ref = bookings_ref.document(booking_id)
             transaction.set(doc_ref, booking_data)
@@ -267,7 +288,7 @@ def get_bookings(user_id):
         docs   = bookings_query.stream()
         result = []
         for doc in docs:
-            data = doc.to_dict()
+            data = _safe_serialize(doc.to_dict())
 
             # ── Нормалізуємо Firestore Timestamp → ISO string ──────────────
             # doc.to_dict() повертає DatetimeWithNanoseconds,
