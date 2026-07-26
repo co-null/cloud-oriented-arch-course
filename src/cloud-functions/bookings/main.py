@@ -119,27 +119,6 @@ def verify_token_via_cloud_function():
         return None, make_cors_response(jsonify({"detail": "Некоректний токен"}), 401)
     return response.json(), None
 
-def _safe_serialize(data: dict) -> dict:
-        """
-        Перетворює всі Firestore-специфічні типи на JSON-сумісні.
-        Викликається для кожного документа перед jsonify().
-        """
-        result = {}
-        for key, val in data.items():
-            if val is None:
-                result[key] = None
-            elif hasattr(val, 'isoformat'):
-                # DatetimeWithNanoseconds → ISO string
-                result[key] = val.isoformat()
-            elif hasattr(val, '_seconds'):
-                # Firestore Timestamp (старіший формат)
-                result[key] = datetime.fromtimestamp(
-                    val._seconds, tz=timezone.utc
-                ).isoformat()
-            else:
-                result[key] = val
-        return result
-
 @app.route('/', methods=['POST', 'GET', 'OPTIONS'])
 def bookings():
     """Основна функція для роботи з бронюваннями"""
@@ -176,13 +155,13 @@ def create_booking(user_id):
         booking_id     = str(uuid.uuid4())
         correlation_id = str(uuid.uuid4())  # генеруємо ОДИН РАЗ
 
-        booking_data = {
+        booking_data_main = {
                 'booking_id':     booking_id,
                 'correlation_id': correlation_id,  # зберігаємо для майбутніх запитів
                 'status':         'processing',
                 'current_step':   'BOOKING_RECEIVED',
-                'created_at':     firestore.SERVER_TIMESTAMP,
-                'updated_at':     firestore.SERVER_TIMESTAMP,
+                'created_at_iso': datetime.now(timezone.utc).isoformat(),
+                'updated_at_iso': datetime.now(timezone.utc).isoformat(),
                 'user_id':        user_id,
                 'apartment_id':   apartment_id,
                 'start_date':     start_date,
@@ -207,13 +186,13 @@ def create_booking(user_id):
             logger.error(f"Error checking apartment: {e}")
             errors.append("Помилка перевірки квартири")
 
-        booking_data = {**booking_data,
-                'owner_email':    apartment_doc.get('user_id'),
-                'address':        apartment_doc.get('address'),
-                'description':    apartment_doc.get('description'),
-                'rooms':          apartment_doc.get('rooms'),
-                'price':          apartment_doc.get('price')
-            }
+        booking_data_main = {**booking_data_main,
+                             'owner_email': apartment_doc.get('user_id'),
+                             'address': apartment_doc.get('address'),
+                             'description': apartment_doc.get('description'),
+                             'rooms': apartment_doc.get('rooms'),
+                             'price': apartment_doc.get('price')
+                             }
 
         if errors:
             return make_cors_response(jsonify({"detail": " ".join(errors)}), 400)
@@ -231,27 +210,31 @@ def create_booking(user_id):
                 raise Exception('Квартира вже заброньована на ці дати')
             
             doc_ref = bookings_ref.document(booking_id)
-            transaction.set(doc_ref, booking_data)
-            return booking_id, booking_data
+            booking_data_db = {**booking_data_main, 
+                               'created_at': firestore.SERVER_TIMESTAMP, 
+                               'updated_at': firestore.SERVER_TIMESTAMP}
+            transaction.set(doc_ref, booking_data_db)
+            return booking_id, booking_data_db
         
         try:
             transaction = db.transaction()
-            booking_id, booking_data = transaction_func(transaction)
+            booking_id, booking_data_db = transaction_func(transaction)
 
             # Публікація події в Pub/Sub
             ## Публікуємо подію з correlation_id
             event_id       = str(uuid.uuid4())
-            booking_data['event_id'] = event_id  # додаємо event_id до даних бронювання
-            booking_data['event_type'] = 'booking_created'
-            booking_data['version'] = '1.0'
-            booking_data['causation_id'] = None  # перша подія, немає причини
-            booking_data['source'] = 'bookings_api'
+            booking_data_pubsub = {**booking_data_main, 
+                                   'event_id': event_id, 
+                                   'event_type': 'booking_created', 
+                                   'version': '1.0', 
+                                   'causation_id': None, 
+                                   'source': 'bookings_api'}
 
-            message_id = add_message_to_topic(_safe_serialize(booking_data))
+            message_id = add_message_to_topic(booking_data_pubsub)
 
             # Логування успішної спроби
             try:
-                db.collection('booking_logs').add({**booking_data,
+                db.collection('booking_logs').add({**booking_data_main,
                     'status': 'success',
                     'message_id': message_id,
                     'timestamp': datetime.now(timezone.utc).isoformat()
@@ -265,7 +248,7 @@ def create_booking(user_id):
             logger.error(f"Error creating booking: {e}")
             # Логування невдалої спроби
             try:
-                db.collection('booking_logs').add({**booking_data,
+                db.collection('booking_logs').add({**booking_data_main,
                     'status': 'fail',
                     'error': str(e),
                     'timestamp': datetime.now(timezone.utc).isoformat()
@@ -280,21 +263,23 @@ def create_booking(user_id):
         return make_cors_response(jsonify({'error': 'Внутрішня помилка сервера'}), 500)
 
 def get_bookings(user_id):
+    # Поля які виключаємо з відповіді — Firestore Timestamp об'єкти
+    _EXCLUDE_FIELDS = frozenset({"created_at", "updated_at"})
     """Отримання бронювань користувача"""
     try:
         bookings_ref = db.collection('bookings')
         bookings_query = (
             bookings_ref
             .where('user_id', '==', user_id)
-            .order_by('created_at', direction=firestore.Query.DESCENDING)
+            .order_by('created_at_iso', direction=firestore.Query.DESCENDING)
         )
         docs   = bookings_query.stream()
         result = []
         for doc in docs:
-            data = _safe_serialize(doc.to_dict())
-            data['booking_id'] = doc.id  # додаємо booking_id для фронтенду
-
-            result.append(data)
+            data = data = doc.to_dict()
+            filtered = {k: v for k, v in data.items() if k not in _EXCLUDE_FIELDS}
+            filtered['booking_id'] = doc.id  # додаємо booking_id для фронтенду
+            result.append(filtered)
         logger.info(f"Found {len(result)} bookings for user_id={user_id}")
 
         # ── Повертаємо об'єкт з полем bookings ────────────────────────────
