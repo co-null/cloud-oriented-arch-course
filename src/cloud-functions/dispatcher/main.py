@@ -154,7 +154,8 @@ def _dispatch_booking_created(event: dict, event_id: str):
         "address":      event.get("address", "не вказано"),
         "start_date":   event["start_date"],
         "end_date":     event["end_date"],
-        "price":        event.get('price', '—')
+        "price":        event.get('price', '—'),
+        "owner_email":  event.get('owner_email', None)
     }
     _record_booking_step(booking_id, "DISPATCHER_RECEIVED", correlation_id)
     _call_email_sender("/send-booking-email", payload, event_id)

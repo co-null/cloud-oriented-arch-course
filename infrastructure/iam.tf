@@ -162,6 +162,7 @@ resource "google_pubsub_topic_iam_binding" "main_topic_publishers" {
     "serviceAccount:${google_service_account.pubsub_function_sa.email}",   # apartments, bookings
     "serviceAccount:${google_service_account.pubsub_publisher_sa.email}",  # зовнішній publisher
     "serviceAccount:${google_service_account.csv_importer_sa.email}",      # CSV import
+    "serviceAccount:${google_service_account.dispatcher_sa.email}",
   ]
 }
 
