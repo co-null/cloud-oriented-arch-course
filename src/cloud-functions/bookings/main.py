@@ -278,6 +278,7 @@ def get_bookings(user_id):
                     data[field] = val.isoformat()
                 elif val is None:
                     data[field] = ''
+                data['booking_id'] = doc.id  # додаємо booking_id для фронтенду
 
             result.append(data)
         logger.info(f"Found {len(result)} bookings for user_id={user_id}")
