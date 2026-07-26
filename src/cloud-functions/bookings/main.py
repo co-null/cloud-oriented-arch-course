@@ -247,7 +247,7 @@ def create_booking(user_id):
             booking_data['causation_id'] = None  # перша подія, немає причини
             booking_data['source'] = 'bookings_api'
 
-            message_id = add_message_to_topic(booking_data)
+            message_id = add_message_to_topic(_safe_serialize(booking_data))
 
             # Логування успішної спроби
             try:
@@ -292,17 +292,7 @@ def get_bookings(user_id):
         result = []
         for doc in docs:
             data = _safe_serialize(doc.to_dict())
-
-            # ── Нормалізуємо Firestore Timestamp → ISO string ──────────────
-            # doc.to_dict() повертає DatetimeWithNanoseconds,
-            # який jsonify() не вміє серіалізувати
-            for field in ('created_at', 'updated_at'):
-                val = data.get(field)
-                if val is not None and hasattr(val, 'isoformat'):
-                    data[field] = val.isoformat()
-                elif val is None:
-                    data[field] = ''
-                data['booking_id'] = doc.id  # додаємо booking_id для фронтенду
+            data['booking_id'] = doc.id  # додаємо booking_id для фронтенду
 
             result.append(data)
         logger.info(f"Found {len(result)} bookings for user_id={user_id}")
