@@ -509,12 +509,6 @@
         return;
       }
 
-      const statusLabel = {
-        confirmed: { text: '✅ Підтверджено', color: '#16a34a' },
-        pending:   { text: '⏳ Очікує',       color: '#d97706' },
-        cancelled: { text: '❌ Скасовано',    color: '#dc2626' },
-      };
-
       container.innerHTML = `
         <div class="bookings-table-wrapper">
           <table class="bookings-table">
@@ -524,7 +518,6 @@
                 <th>Кімн.</th>
                 <th>Дати</th>
                 <th>Ціна/доба</th>
-                <th>Статус</th>
                 <th>ID бронювання</th>
               </tr>
             </thead>
@@ -545,11 +538,6 @@
                       <span style="color:var(--text-muted);font-size:11px;">→ ${formatDate(b.end_date)}</span>
                     </td>
                     <td style="text-align:right;white-space:nowrap;">${b.price} грн</td>
-                    <td>
-                      <span style="color:${s.color};font-size:12px;font-weight:600;">
-                        ${s.text}
-                      </span>
-                    </td>
                     <td style="font-size:11px;color:var(--text-muted);font-family:monospace;">
                       ${b.booking_id.slice(0, 8)}…
                     </td>
