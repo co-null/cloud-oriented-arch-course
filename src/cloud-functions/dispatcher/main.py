@@ -132,37 +132,6 @@ def _publish_event(event: dict, event_id: str):
         raise RuntimeError(f"Failed to publish event: {e} | parent_event_id={event_id}")
 
 
-# ─── Отримання даних квартири (власник) ───────────────────────────────────────
-
-def _get_apartment_owner_email(apartment_id: str) -> str | None:
-    """
-    Отримує email власника квартири з Firestore.
-    Припускається, що email зберігається або в самому документі (owner_email=user_id)
-
-    Повертає email або None, якщо не вдалося знайти.
-    """
-    if not apartment_id:
-        return None
-    try:
-        doc = _db.collection("apartments").document(apartment_id).get()
-        if not doc.exists:
-            print(f"[WARNING] Apartment not found: {apartment_id}")
-            return None
-
-        data = doc.to_dict()
-
-        owner_email = data.get("user_id") or data.get("owner_email")
-        if owner_email:
-            return owner_email
-
-        print(f"[WARNING] No owner_email (user_id) in apartment document: {apartment_id}")
-        return None
-
-    except Exception as e:
-        print(f"[WARNING] Failed to get apartment owner: {e} | apartment_id={apartment_id}")
-        return None
-
-
 # ─── Обробники подій ───
 def _dispatch_booking_created(event: dict, event_id: str):
     """
@@ -227,25 +196,9 @@ def _dispatch_owner_booking_notification(event: dict, event_id: str):
     booking_id     = event.get("booking_id", event_id)
     correlation_id = event.get("correlation_id", event_id)
     apartment_id   = event.get("apartment_id")
+    owner_email    = event.get("owner_email")
 
     _record_booking_step(booking_id, "OWNER_NOTIFICATION_RECEIVED", correlation_id)
-
-    # ── Отримуємо email власника квартири ─────────────────────────────────────
-    owner_email = _get_apartment_owner_email(apartment_id)
-
-    if not owner_email:
-        # Власника не знайдено — це не помилка системи, а відсутність даних.
-        # Повертаємо без помилки, щоб не блокувати retry.
-        # В реальній системі тут можна відправити лист адміну або записати в DLQ вручну.
-        print(
-            f"[WARNING] Owner email not found for apartment_id={apartment_id} "
-            f"| event_id={event_id} — skipping owner notification"
-        )
-        _record_booking_step(
-            booking_id, "OWNER_EMAIL_SKIPPED", correlation_id,
-            details={"reason": "owner_email_not_found", "apartment_id": apartment_id}
-        )
-        return
 
     # ── Відправляємо лист власнику ────────────────────────────────────────────
     # Використовуємо /send-email (plain-text режим), оскільки шаблон booking_created.html

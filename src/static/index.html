@@ -449,33 +449,52 @@
           <p>Завантаження бронювань…</p>
         </div>`;
 
-      try {
-        const res  = await fetch(BOOKINGS_URL, {
-          headers: { 'Authorization': 'Bearer ' + idToken }
-        });
-        const data = await res.json();
+        try {
+          // ── GET на той самий BOOKINGS_URL ──────────────────────────────────────
+          const res  = await fetch(BOOKINGS_URL, {
+            method: 'GET',                                    // явно вказуємо GET
+            headers: { 'Authorization': 'Bearer ' + idToken }
+          });
 
-        if (res.ok) {
-          renderMyBookings(data.bookings);
-        } else {
+          // ── Спочатку читаємо текст, щоб діагностувати помилки парсингу ────────
+          const text = await res.text();
+          let data;
+          try {
+            data = JSON.parse(text);
+          } catch {
+            console.error('Не вдалося розпарсити відповідь:', text);
+            container.innerHTML = `
+              <div class="empty-state">
+                <span class="empty-state-icon">⚠️</span>
+                <p>Некоректна відповідь сервера</p>
+                <small>${text.slice(0, 100)}</small>
+              </div>`;
+            return;
+          }
+
+          if (res.ok) {
+            // ── Підтримуємо обидва формати відповіді: масив і об'єкт ──────────
+            const bookings = Array.isArray(data) ? data : (data.bookings || []);
+            renderMyBookings(bookings);
+          } else {
+            container.innerHTML = `
+              <div class="empty-state">
+                <span class="empty-state-icon">⚠️</span>
+                <p>${data.error || data.detail || 'Не вдалося завантажити бронювання'}</p>
+              </div>`;
+          }
+        } catch (err) {
           container.innerHTML = `
             <div class="empty-state">
-              <span class="empty-state-icon">⚠️</span>
-              <p>${data.error || 'Не вдалося завантажити бронювання'}</p>
+              <span class="empty-state-icon">🔌</span>
+              <p>Помилка мережі</p>
+              <small>${err.message}</small>
             </div>`;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Оновити';
         }
-      } catch (err) {
-        container.innerHTML = `
-          <div class="empty-state">
-            <span class="empty-state-icon">🔌</span>
-            <p>Помилка мережі</p>
-            <small>${err.message}</small>
-          </div>`;
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Оновити';
       }
-    }
 
     function renderMyBookings(bookings) {
       const container = document.getElementById('myBookingsContainer');

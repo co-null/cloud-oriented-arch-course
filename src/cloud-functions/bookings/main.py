@@ -259,11 +259,34 @@ def get_bookings(user_id):
     """Отримання бронювань користувача"""
     try:
         bookings_ref = db.collection('bookings')
-        bookings_query = bookings_ref.where('user_id', '==', user_id)
-        bookings = bookings_query.stream()
-        result = [doc.to_dict() for doc in bookings]
-        return make_cors_response(jsonify(result), 200)
-    
+        bookings_query = (
+            bookings_ref
+            .where('user_id', '==', user_id)
+            .order_by('created_at', direction=firestore.Query.DESCENDING)
+        )
+        docs   = bookings_query.stream()
+        result = []
+        for doc in docs:
+            data = doc.to_dict()
+
+            # ── Нормалізуємо Firestore Timestamp → ISO string ──────────────
+            # doc.to_dict() повертає DatetimeWithNanoseconds,
+            # який jsonify() не вміє серіалізувати
+            for field in ('created_at', 'updated_at'):
+                val = data.get(field)
+                if val is not None and hasattr(val, 'isoformat'):
+                    data[field] = val.isoformat()
+                elif val is None:
+                    data[field] = ''
+
+            result.append(data)
+        logger.info(f"Found {len(result)} bookings for user_id={user_id}")
+
+        # ── Повертаємо об'єкт з полем bookings ────────────────────────────
+        # Фронтенд очікує { "bookings": [...] }
+        return make_cors_response(jsonify({"bookings": result}), 200)
+
+
     except Exception as e:
         logger.error(f"Error getting bookings: {e}")
         return make_cors_response(jsonify({'error': 'Помилка отримання бронювань'}), 500)
