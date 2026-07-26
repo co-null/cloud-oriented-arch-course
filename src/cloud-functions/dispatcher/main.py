@@ -178,6 +178,7 @@ def _dispatch_booking_created(event: dict, event_id: str):
         "price":          event.get("price", "—"),
         "user_name":      event.get("user_name", "Клієнт"),  # ім'я орендаря для листа власнику
         "user_email":     event.get("user_id"),              # email орендаря (user_id = email у вашій системі)
+        "owner_email":    event.get('owner_email', None)
     }
     _publish_event(owner_notification_event, event_id)
     _record_booking_step(
