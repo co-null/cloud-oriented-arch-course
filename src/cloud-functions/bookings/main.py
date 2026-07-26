@@ -184,12 +184,7 @@ def create_booking(user_id):
                 'created_at':     firestore.SERVER_TIMESTAMP,
                 'updated_at':     firestore.SERVER_TIMESTAMP,
                 'user_id':        user_id,
-                'owner_email':    apartment_doc.get('user_id'),
                 'apartment_id':   apartment_id,
-                'address':        apartment_doc.get('address'),
-                'description':    apartment_doc.get('description'),
-                'rooms':          apartment_doc.get('rooms'),
-                'price':          apartment_doc.get('price'),
                 'start_date':     start_date,
                 'end_date':       end_date,
             }
@@ -211,6 +206,14 @@ def create_booking(user_id):
         except Exception as e:
             logger.error(f"Error checking apartment: {e}")
             errors.append("Помилка перевірки квартири")
+
+        booking_data = {**booking_data,
+                'owner_email':    apartment_doc.get('user_id'),
+                'address':        apartment_doc.get('address'),
+                'description':    apartment_doc.get('description'),
+                'rooms':          apartment_doc.get('rooms'),
+                'price':          apartment_doc.get('price')
+            }
 
         if errors:
             return make_cors_response(jsonify({"detail": " ".join(errors)}), 400)
