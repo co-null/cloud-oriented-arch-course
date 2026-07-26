@@ -1,19 +1,23 @@
 import base64
 import json
 import os
+import uuid
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from google.cloud import firestore
+from google.cloud import pubsub_v1
 from datetime import datetime, timezone
 from flask import Request
 
 EMAIL_SENDER_URL = os.environ.get("EMAIL_SENDER_URL")
 ADMIN_EMAIL      = os.environ.get("ADMIN_EMAIL")
 PROJECT_ID       = os.environ.get("GCP_PROJECT")
+PUBSUB_TOPIC     = os.environ.get("PUBSUB_TOPIC")
 
 # ─── Ініціалізація (один раз при cold start) ───
 _db = firestore.Client(project=PROJECT_ID)
+_publisher = pubsub_v1.PublisherClient()
 
 def _create_session() -> requests.Session:
     session = requests.Session()
@@ -92,11 +96,85 @@ def _call_email_sender(endpoint: str, payload: dict, event_id: str):
             f"{resp.text[:200]} | event_id={event_id}"
         )
 
+# ─── Pub/Sub publisher helper ──────────────────────────────────────────────────
+
+def _publish_event(event: dict, event_id: str):
+    """
+    Публікує нову подію в Pub/Sub топік.
+
+    Чому це безпечно:
+    - Новий event отримає власний унікальний message_id від Pub/Sub
+    - Idempotency check у dispatcher спрацює на цей новий ID
+    - Якщо publish не вдався — кидаємо RuntimeError → Pub/Sub зробить
+      retry для ПОТОЧНОГО event (booking_created), а не нового
+
+    :param event:    dict з даними події (буде серіалізовано в JSON → base64)
+    :param event_id: event_id батьківської події (для логування)
+    """
+    if not PUBSUB_TOPIC:
+        raise RuntimeError("PUBSUB_TOPIC env var is not set")
+
+    topic_path = _publisher.topic_path(PROJECT_ID, PUBSUB_TOPIC)
+    data_bytes = json.dumps(event, ensure_ascii=False).encode("utf-8")
+
+    try:
+        future = _publisher.publish(topic_path, data=data_bytes)
+        new_message_id = future.result(timeout=10)   # чекаємо підтвердження від Pub/Sub
+        print(
+            f"[INFO] Published event_type={event.get('event_type')} "
+            f"new_message_id={new_message_id} | parent_event_id={event_id}"
+        )
+    except Exception as e:
+        # Кидаємо RuntimeError → dispatcher поверне 500 → Pub/Sub зробить
+        # retry для батьківського event → booking_created буде оброблено знову
+        # Але лист користувачу вже відправлено! Тому idempotency check
+        # на рівні _mark_processed захистить від дублювання листа.
+        raise RuntimeError(f"Failed to publish event: {e} | parent_event_id={event_id}")
+
+
+# ─── Отримання даних квартири (власник) ───────────────────────────────────────
+
+def _get_apartment_owner_email(apartment_id: str) -> str | None:
+    """
+    Отримує email власника квартири з Firestore.
+    Припускається, що email зберігається або в самому документі (owner_email=user_id)
+
+    Повертає email або None, якщо не вдалося знайти.
+    """
+    if not apartment_id:
+        return None
+    try:
+        doc = _db.collection("apartments").document(apartment_id).get()
+        if not doc.exists:
+            print(f"[WARNING] Apartment not found: {apartment_id}")
+            return None
+
+        data = doc.to_dict()
+
+        owner_email = data.get("user_id") or data.get("owner_email")
+        if owner_email:
+            return owner_email
+
+        print(f"[WARNING] No owner_email (user_id) in apartment document: {apartment_id}")
+        return None
+
+    except Exception as e:
+        print(f"[WARNING] Failed to get apartment owner: {e} | apartment_id={apartment_id}")
+        return None
+
+
 # ─── Обробники подій ───
 def _dispatch_booking_created(event: dict, event_id: str):
+    """
+    Обробляє подію booking_created:
+    1. Відправляє лист підтвердження користувачу
+    2. Публікує нову подію owner_booking_notification у Pub/Sub
+       → dispatcher обробить її окремо і надішле лист власнику квартири
+    """
     booking_id     = event.get("booking_id", event_id)
     correlation_id = event.get("correlation_id", event_id)  # fallback на event_id
 
+    # ── Крок 1: лист користувачу
     payload = {
         "recipient":    event["user_id"],
         "user_name":    event.get("user_name", "Клієнт"),
@@ -113,6 +191,86 @@ def _dispatch_booking_created(event: dict, event_id: str):
     _call_email_sender("/send-booking-email", payload, event_id)
     _record_booking_step(booking_id, "EMAIL_SENT", correlation_id,
                          details={"recipient": event.get("user_id")})
+
+    # ── Крок 2: публікуємо нову подію для листа власнику ─────────────────────
+    # Формуємо окрему подію — dispatcher отримає її як нове повідомлення
+    # зі своїм унікальним message_id від Pub/Sub
+    owner_notification_event = {
+        "event_type":     "owner_booking_notification",   
+        "correlation_id": correlation_id,                 # зберігаємо той самий correlation_id для трасування
+        "booking_id":     event.get("booking_id", event_id),
+        "apartment_id":   event.get("apartment_id"),
+        "address":        event.get("address", "не вказано"),
+        "rooms":          event.get("rooms", "не вказано"),
+        "description":    event.get("description", "не вказано"),
+        "start_date":     event["start_date"],
+        "end_date":       event["end_date"],
+        "price":          event.get("price", "—"),
+        "user_name":      event.get("user_name", "Клієнт"),  # ім'я орендаря для листа власнику
+        "user_email":     event.get("user_id"),              # email орендаря (user_id = email у вашій системі)
+    }
+    _publish_event(owner_notification_event, event_id)
+    _record_booking_step(
+        booking_id, "OWNER_NOTIFICATION_QUEUED", correlation_id,
+        details={"apartment_id": event.get("apartment_id")}
+    )
+
+def _dispatch_owner_booking_notification(event: dict, event_id: str):
+    """
+    Обробляє подію owner_booking_notification:
+    1. Отримує email власника квартири з Firestore
+    2. Відправляє лист власнику з деталями бронювання
+
+    Цей обробник викликається окремим Pub/Sub повідомленням,
+    тому має власний idempotency check і незалежний retry.
+    """
+    booking_id     = event.get("booking_id", event_id)
+    correlation_id = event.get("correlation_id", event_id)
+    apartment_id   = event.get("apartment_id")
+
+    _record_booking_step(booking_id, "OWNER_NOTIFICATION_RECEIVED", correlation_id)
+
+    # ── Отримуємо email власника квартири ─────────────────────────────────────
+    owner_email = _get_apartment_owner_email(apartment_id)
+
+    if not owner_email:
+        # Власника не знайдено — це не помилка системи, а відсутність даних.
+        # Повертаємо без помилки, щоб не блокувати retry.
+        # В реальній системі тут можна відправити лист адміну або записати в DLQ вручну.
+        print(
+            f"[WARNING] Owner email not found for apartment_id={apartment_id} "
+            f"| event_id={event_id} — skipping owner notification"
+        )
+        _record_booking_step(
+            booking_id, "OWNER_EMAIL_SKIPPED", correlation_id,
+            details={"reason": "owner_email_not_found", "apartment_id": apartment_id}
+        )
+        return
+
+    # ── Відправляємо лист власнику ────────────────────────────────────────────
+    # Використовуємо /send-email (plain-text режим), оскільки шаблон booking_created.html
+    # орієнтований на орендаря. Для власника формуємо окремий текст.
+    # (Студентам запропонувати створити окремий HTML-шаблон як розширення завдання)
+    payload = {
+        "recipient": owner_email,
+        "subject":   f"🏠 Нове бронювання вашої квартири: {event.get('address', apartment_id)}",
+        "text": (
+            f"Вашу квартиру заброньовано!\n\n"
+            f"Квартира: {event.get('address', 'не вказано')}\n"
+            f"Орендар: {event.get('user_name', 'Клієнт')} ({event.get('user_email', 'не вказано')})\n"
+            f"Дати: {event.get('start_date')} — {event.get('end_date')}\n"
+            f"Кімнат: {event.get('rooms', '—')}\n"
+            f"Ціна/доба: {event.get('price', '—')} UAH\n"
+            f"ID бронювання: {event.get('booking_id', event_id)}\n\n"
+            f"З повагою, команда ApartHub"
+        )
+    }
+    _call_email_sender("/send-email", payload, event_id)
+    _record_booking_step(
+        booking_id, "OWNER_EMAIL_SENT", correlation_id,
+        details={"recipient": owner_email}
+    )
+
 
 def _dispatch_apartment_added(event: dict, event_id: str):
     if not ADMIN_EMAIL:
@@ -137,6 +295,10 @@ def _dispatch_apartment_added(event: dict, event_id: str):
 def main(request: Request):
     """
     Точка входу для HTTP-тригера (Pub/Sub push-підписка).
+    Підтримує event_type:
+      - booking_created              → лист користувачу + publish owner_booking_notification
+      - owner_booking_notification   → лист власнику квартири
+      - apartment_added              → лист адміну
 
     Pub/Sub надсилає POST з JSON-тілом:
     {
@@ -192,6 +354,8 @@ def main(request: Request):
             _dispatch_booking_created(payload, event_id)
         elif event_type == "apartment_added":
             _dispatch_apartment_added(payload, event_id)
+        elif event_type == "owner_booking_notification":
+            _dispatch_owner_booking_notification(payload, event_id)
         else:
             # Невідомий тип — ACK, не retry (retry не виправить)
             print(f"[WARNING] Unknown event_type={event_type} | event_id={event_id}")

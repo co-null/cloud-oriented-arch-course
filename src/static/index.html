@@ -157,6 +157,22 @@
         </button>
         <div id="apartmentsList" class="apartments-list"></div>
       </section>
+      <!-- ─── Мої бронювання ─── -->
+      <section class="card bookings-card" style="margin-top: 24px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+          <p class="card-title" style="margin-bottom:0;">📋 Мої бронювання</p>
+          <button id="loadMyBookingsBtn" class="btn btn-secondary btn-sm">
+            Оновити
+          </button>
+        </div>
+        <div id="myBookingsContainer">
+          <div class="empty-state">
+            <span class="empty-state-icon">🗓️</span>
+            <p>Бронювань не завантажено</p>
+            <small>Натисніть «Оновити» або увійдіть в акаунт</small>
+          </div>
+        </div>
+      </section>
 
     </div>
   </main>
@@ -190,6 +206,7 @@
     const APARTMENTS_URL = "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/apartments";
     const BOOKINGS_URL   = "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/bookings";
     const MESSAGES_URL   = "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/messages";
+  
 
     async function getIdToken() {
       return currentUser ? await currentUser.getIdToken() : null;
@@ -237,6 +254,7 @@
         }
 
         startAutoRefresh();
+        loadMyBookings(); // автоматично завантажити бронювання при вході
       } else {
         formBlock.style.display   = 'block';
         loggedBlock.style.display = 'none';
@@ -409,6 +427,130 @@
         e.target.textContent = 'Забронювати';
       }
     });
+
+    // ─── Load My Bookings ───
+    document.getElementById('loadMyBookingsBtn').addEventListener('click', loadMyBookings);
+
+    async function loadMyBookings() {
+      const idToken = await getIdToken();
+      if (!idToken) {
+        alert('Ви не авторизовані!');
+        return;
+      }
+
+      const btn       = document.getElementById('loadMyBookingsBtn');
+      const container = document.getElementById('myBookingsContainer');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner spinner-dark"></span> Завантаження…';
+      container.innerHTML = `
+        <div class="empty-state">
+          <span class="spinner spinner-dark" style="width:20px;height:20px;"></span>
+          <p>Завантаження бронювань…</p>
+        </div>`;
+
+      try {
+        const res  = await fetch(BOOKINGS_URL, {
+          headers: { 'Authorization': 'Bearer ' + idToken }
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          renderMyBookings(data.bookings);
+        } else {
+          container.innerHTML = `
+            <div class="empty-state">
+              <span class="empty-state-icon">⚠️</span>
+              <p>${data.error || 'Не вдалося завантажити бронювання'}</p>
+            </div>`;
+        }
+      } catch (err) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <span class="empty-state-icon">🔌</span>
+            <p>Помилка мережі</p>
+            <small>${err.message}</small>
+          </div>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Оновити';
+      }
+    }
+
+    function renderMyBookings(bookings) {
+      const container = document.getElementById('myBookingsContainer');
+
+      if (!bookings || !bookings.length) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <span class="empty-state-icon">📭</span>
+            <p>У вас ще немає бронювань</p>
+            <small>Знайдіть квартиру і забронюйте її</small>
+          </div>`;
+        return;
+      }
+
+      const statusLabel = {
+        confirmed: { text: '✅ Підтверджено', color: '#16a34a' },
+        pending:   { text: '⏳ Очікує',       color: '#d97706' },
+        cancelled: { text: '❌ Скасовано',    color: '#dc2626' },
+      };
+
+      container.innerHTML = `
+        <div class="bookings-table-wrapper">
+          <table class="bookings-table">
+            <thead>
+              <tr>
+                <th>Адреса</th>
+                <th>Кімн.</th>
+                <th>Дати</th>
+                <th>Ціна/доба</th>
+                <th>Статус</th>
+                <th>ID бронювання</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${bookings.map(b => {
+                const s = statusLabel[b.status] || { text: b.status, color: '#6b7280' };
+                return `
+                  <tr>
+                    <td>
+                      <div style="font-weight:500;">${b.address}</div>
+                      ${b.description
+                        ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${b.description}</div>`
+                        : ''}
+                    </td>
+                    <td style="text-align:center;">${b.rooms}</td>
+                    <td style="white-space:nowrap;">
+                      ${formatDate(b.start_date)}<br>
+                      <span style="color:var(--text-muted);font-size:11px;">→ ${formatDate(b.end_date)}</span>
+                    </td>
+                    <td style="text-align:right;white-space:nowrap;">${b.price} грн</td>
+                    <td>
+                      <span style="color:${s.color};font-size:12px;font-weight:600;">
+                        ${s.text}
+                      </span>
+                    </td>
+                    <td style="font-size:11px;color:var(--text-muted);font-family:monospace;">
+                      ${b.booking_id.slice(0, 8)}…
+                    </td>
+                  </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '—';
+      try {
+        return new Date(dateStr).toLocaleDateString('uk-UA', {
+          day: '2-digit', month: 'short', year: 'numeric'
+        });
+      } catch {
+        return dateStr;
+      }
+    }
 
     // ─── Load events ───
     document.getElementById('loadEventsBtn').addEventListener('click', () => loadEvents(true));

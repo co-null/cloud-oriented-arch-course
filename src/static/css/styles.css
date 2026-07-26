@@ -489,6 +489,46 @@ textarea {
   margin-top: 2px;
 }
 
+/* ─── My Bookings Table ─── */
+.bookings-table-wrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border, #e5e7eb);
+}
+
+.bookings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.bookings-table th {
+  background: var(--surface-alt, #f9fafb);
+  color: var(--text-muted, #6b7280);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.bookings-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  vertical-align: middle;
+  color: var(--text, #111827);
+}
+
+.bookings-table tr:last-child td {
+  border-bottom: none;
+}
+
+.bookings-table tr:hover td {
+  background: var(--surface-alt, #f9fafb);
+}
+
 /* ─── Spinner ─── */
 .spinner {
   display: inline-block;
