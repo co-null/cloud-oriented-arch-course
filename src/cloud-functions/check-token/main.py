@@ -1,12 +1,11 @@
 import firebase_admin, os
 from firebase_admin import credentials, auth
 import functions_framework
-from flask import jsonify, request
 import logging
 
 cred = credentials.ApplicationDefault()
 firebase_admin.initialize_app(cred, {
-    'projectId': 'cloud-oriented-arch-course'
+    'projectId': 'cloud-oriented-arch-course'  # Replace with your actual project ID
 })
 
 @functions_framework.http

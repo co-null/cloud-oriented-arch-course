@@ -1,15 +1,42 @@
-from flask import Flask, request, jsonify, make_response
 import firebase_admin
 from firebase_admin import credentials, firestore
 from datetime import datetime, timezone
-import requests, logging
+import requests, logging, json
 
 # Ініціалізація Firestore
 cred = credentials.ApplicationDefault()
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-app = Flask(__name__)
+CORS_HEADERS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Headers': 'Authorization,Content-Type',
+    'Access-Control-Max-Age': '3600',
+}
+
+def make_cors_response(body='', status=200, headers=None):
+    response_headers = {
+        **CORS_HEADERS,
+    }
+    if headers:
+        response_headers.update(headers)
+    return body, status, response_headers
+
+def json_response(payload, status=200, headers=None):
+    response_headers = {
+        **CORS_HEADERS,
+        'Content-Type': 'application/json',
+    }
+
+    if headers:
+        response_headers.update(headers)
+
+    return (
+        json.dumps(payload, ensure_ascii=False, default=str),
+        status,
+        response_headers,
+    )
 
 # Валідація даних квартири
 def validate_apartment(data):
@@ -24,60 +51,63 @@ def validate_apartment(data):
         errors.append("Опис має бути рядком до 500 символів.")
     return errors
 
-def make_cors_response(response, status=200):
-    resp = make_response(response, status)
-    resp.headers['Access-Control-Allow-Origin'] = '*'
-    resp.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
-    resp.headers['Access-Control-Allow-Headers'] = 'Authorization,Content-Type'
-    resp.headers['Access-Control-Max-Age'] = '3600'
-    return resp
 
 # Перевірка токена через Cloud Function
-def verify_token_via_cloud_function():
-    auth = request.headers.get("Authorization")
-    if not auth:
-        return None, make_cors_response(jsonify({"detail": "Відсутній токен"}), 401)
+def verify_token_via_cloud_function(request):
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header:
+        return None, json_response({"detail": "Відсутній токен"}, 401)
+
     response = requests.post(
         "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/protected-api",
-        headers={"Authorization": auth}
+        headers={"Authorization": auth_header},
     )
+
     if response.status_code != 200:
-        return None, make_cors_response(jsonify({"detail": "Некоректний токен"}), 401)
+        return None, json_response({"detail": "Некоректний токен"}, 401)
+    
     return response.json(), None
 
-@app.route('/', methods=['POST', 'GET', 'OPTIONS'])
-def apartments():
+def create_apartment(request, user):
+    data = request.get_json(silent=True)
+    errors = validate_apartment(data)
+    if errors:
+        return json_response({"detail": " ".join(errors)}, 400)
+    _, doc_ref = db.collection('apartments').add(data)
+
+    log_entry = {
+        "user_id": user.get("user"),
+        "role": "no_role" if not user.get("role") else user.get("role"),
+        "action": "create_apartment",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "details": {
+            **data,
+            "id": doc_ref.id,
+        },
+    }
+    db.collection("logs").add(log_entry)
+
+    return json_response({"status": "created"}, 201)
+
+def get_apartments():
+    apartments = db.collection('apartments').stream()
+    result = [{**doc.to_dict(), "id": doc.id} for doc in apartments]
+    return json_response(result, 200)
+
+def main(request):
     if request.method == 'OPTIONS':
         return make_cors_response('', 204)
-    
-    user, error_resp = verify_token_via_cloud_function()
+
+    user, error_resp = verify_token_via_cloud_function(request)
+
     if not user:
         return error_resp
 
     if request.method == 'POST':
-        data = request.get_json()
-        errors = validate_apartment(data)
-        if errors:
-            return make_cors_response(jsonify({"detail": " ".join(errors)}), 400)
-        _, doc_ref = db.collection('apartments').add(data)
-        logging.info(f"doc_ref: {doc_ref}")
-        # Логування створення
-        log_entry = {
-            "user_id": user.get("user"),
-            "role": "no_role" if not user.get("role") else user.get("role"),
-            "action": "create_apartment",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "details": {**data, 'id': doc_ref.id}
-        }
-        logging.info(f"log_entry: {doc_ref.id}")
-        db.collection("logs").add(log_entry)
-        return make_cors_response(jsonify({"status": "created"}), 201)
+        return create_apartment(request, user)
 
-    elif request.method == 'GET':
-        apartments = db.collection('apartments').stream()
-        result = [{**doc.to_dict(), 'id': doc.id} for doc in apartments]
-        return make_cors_response(jsonify(result), 200)
-    
-def main(request):
-    with app.request_context(request.environ):
-        return app.full_dispatch_request()
+    if request.method == 'GET':
+        return get_apartments()
+
+    return json_response({"detail": "Метод не підтримується"}, 405)
