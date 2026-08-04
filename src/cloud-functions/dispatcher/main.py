@@ -6,7 +6,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from google.cloud import firestore
 from datetime import datetime, timezone
-from flask import Request
 
 # ─── Ініціалізація (один раз при cold start) ───
 
@@ -106,7 +105,7 @@ def _dispatch_apartment_added(event: dict, event_id: str):
     _call_email_sender("/send-email", payload, event_id)
 
 # ─── Головний обробник — HTTP сигнатура ───
-def main(request: Request):
+def main(request):
     """
     Точка входу для HTTP-тригера (Pub/Sub push-підписка).
 
