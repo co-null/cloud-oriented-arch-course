@@ -1,26 +1,28 @@
-from flask import Flask, request, jsonify, make_response
 import firebase_admin
 from firebase_admin import credentials, firestore
 from datetime import datetime, timezone
-import requests, logging, uuid
+import requests, json, logging, uuid
 
 # Ініціалізація Firestore
 cred = credentials.ApplicationDefault()
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-app = Flask(__name__)
+CORS_HEADERS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Headers': 'Authorization,Content-Type',
+    'Access-Control-Max-Age': '3600',
+}
 
-def make_cors_response(response, status=200):
-    resp = make_response(response, status)
-    resp.headers['Access-Control-Allow-Origin'] = '*'
-    resp.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
-    resp.headers['Access-Control-Allow-Headers'] = 'Authorization,Content-Type'
-    resp.headers['Access-Control-Max-Age'] = '3600'
-    return resp
+def _json_response(payload, status=200):
+    """Формує (body, status, headers) кортеж для Cloud Functions."""
+    return (json.dumps(payload, ensure_ascii=False), status,
+            {**CORS_HEADERS, 'Content-Type': 'application/json'})
+
 
 # Перевірка токена через Cloud Function
-def verify_token_via_cloud_function():
+def verify_token_via_cloud_function(request):
     auth = request.headers.get("Authorization")
     if not auth:
         return None, make_cors_response(jsonify({"detail": "Відсутній токен"}), 401)
@@ -32,20 +34,22 @@ def verify_token_via_cloud_function():
         return None, make_cors_response(jsonify({"detail": "Некоректний токен"}), 401)
     return response.json(), None
 
-@app.route('/', methods=['POST', 'GET', 'OPTIONS'])
-def bookings():
+def main(request):
+    """Точка входу Cloud Function (HTTP trigger)."""
+
+    # Preflight CORS запит
     if request.method == 'OPTIONS':
-        return make_cors_response('', 204)
-    
-    user, error_resp = verify_token_via_cloud_function()
+        return ('', 204, CORS_HEADERS)
+
+    user, error_resp = verify_token_via_cloud_function(request)
     if not user:
         return error_resp
-    
+
     user_id = user.get("user")
 
     if request.method == 'POST':
         errors = []
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         apartment_id = data.get('apartment_id')
         start_date = data.get('start_date')
         end_date = data.get('end_date')
@@ -53,26 +57,26 @@ def bookings():
         # Валідація обов’язкових полів
         if not all([apartment_id, start_date, end_date]):
             errors.append("Всі поля обов’язкові")
+        else:
+            # Валідація дат (перевіряємо лише якщо поля присутні)
+            if start_date >= end_date:
+                errors.append("Дата початку має бути меншою за дату завершення")
 
-        # Валідація дат
-        if start_date >= end_date:
-            errors.append("Дата початку має бути меншою за дату завершення")
-
-        # Перевірка apartment_id
-        apartment_ref = db.collection('apartments').document(apartment_id)
-        if not apartment_ref.get().exists:
-            errors.append("Квартира не знайдена")
+            # Перевірка apartment_id
+            apartment_ref = db.collection('apartments').document(apartment_id)
+            if not apartment_ref.get().exists:
+                errors.append("Квартира не знайдена")
 
         if errors:
-            return make_cors_response(jsonify({"detail": " ".join(errors)}), 400)
-        
+            return _json_response({"detail": " ".join(errors)}, 400)
+
         # Транзакція для перевірки конфлікту та створення бронювання
         @firestore.transactional
         def transaction_func(transaction):
             bookings_ref = db.collection('bookings')
-            conflict_query = bookings_ref.where('apartment_id', '==', apartment_id)\
-                .where('start_date', '<=', end_date)\
-                .where('end_date', '>=', start_date)\
+            conflict_query = bookings_ref.where('apartment_id', '==', apartment_id) \
+                .where('start_date', '<=', end_date) \
+                .where('end_date', '>=', start_date) \
                 .limit(1)
             conflict = [doc for doc in conflict_query.stream(transaction=transaction)]
             if conflict:
@@ -85,14 +89,14 @@ def bookings():
                 'end_date': end_date,
                 'created_at': datetime.now(timezone.utc).isoformat()
             }
-            # Створюємо новий документ з унікальним ID
             new_id = str(uuid.uuid4())
             doc_ref = bookings_ref.document(new_id)
             transaction.set(doc_ref, booking_data)
+
         try:
             transaction = db.transaction()
             transaction_func(transaction)
-            # Логування успішної спроби
+
             db.collection('booking_logs').add({
                 'user_id': user_id,
                 'apartment_id': apartment_id,
@@ -101,9 +105,9 @@ def bookings():
                 'status': 'success',
                 'timestamp': datetime.now(timezone.utc).isoformat()
             })
-            return make_cors_response(jsonify({'message': 'Бронювання створено'}), 201)
+            return _json_response({'message': 'Бронювання створено'}, 201)
+
         except Exception as e:
-            # Логування невдалої спроби
             db.collection('booking_logs').add({
                 'user_id': user_id,
                 'apartment_id': apartment_id,
@@ -113,15 +117,13 @@ def bookings():
                 'error': str(e),
                 'timestamp': datetime.now(timezone.utc).isoformat()
             })
-            return make_cors_response(jsonify({'error': str(e)}), 409)
+            return _json_response({'error': str(e)}, 409)
 
     elif request.method == 'GET':
         bookings_ref = db.collection('bookings')
         bookings_query = bookings_ref.where('user_id', '==', user_id)
         bookings = bookings_query.stream()
         result = [doc.to_dict() for doc in bookings]
-        return make_cors_response(jsonify(result), 200)
-    
-def main(request):
-    with app.request_context(request.environ):
-        return app.full_dispatch_request()
+        return _json_response(result, 200)
+
+    return _json_response({"detail": "Метод не підтримується"}, 405)
