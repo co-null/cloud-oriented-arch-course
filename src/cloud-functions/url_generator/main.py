@@ -8,7 +8,6 @@ import datetime
 import json
 import os
 import uuid
-import flask
 import google.auth
 from google.auth import impersonated_credentials
 from google.cloud import firestore, storage
@@ -22,6 +21,8 @@ MAX_FILE_SIZE_MB = 50  # Максимально дозволений розмі�
 # ─── Ініціалізація клієнтів ───────────────────────────────
 _db = firestore.Client(project=GCP_PROJECT)
 
+CORS_HEADERS = {"Access-Control-Allow-Origin": "*"}
+
 def log(severity: str, message: str, **kwargs):
     entry = {
         "severity": severity,
@@ -31,8 +32,13 @@ def log(severity: str, message: str, **kwargs):
     }
     print(json.dumps(entry))
 
+def json_response(payload, status=200, headers=None):
+    response_headers = {**CORS_HEADERS}
+    if headers:
+        response_headers.update(headers)
+    return json.dumps(payload), status, response_headers
 
-def generate_import_url(request: flask.Request) -> flask.Response:
+def generate_import_url(request):
     """
     HTTP endpoint для отримання Signed URL.
     
@@ -59,12 +65,8 @@ def generate_import_url(request: flask.Request) -> flask.Response:
             "Access-Control-Max-Age": "3600",
         })
     
-    cors_headers = {"Access-Control-Allow-Origin": "*"}
-    
     if request.method != "POST":
-        return flask.make_response(
-            json.dumps({"error": "Only POST allowed"}), 405, cors_headers
-        )
+        return json_response({"error": "Only POST allowed"}, 405)
     
     # Парсимо тіло запиту
     body = request.get_json(silent=True) or {}
@@ -74,9 +76,8 @@ def generate_import_url(request: flask.Request) -> flask.Response:
     
     # Валідація розміру
     if file_size_bytes > MAX_FILE_SIZE_MB * 1024 * 1024:
-        return flask.make_response(
-            json.dumps({"error": f"File too large. Max {MAX_FILE_SIZE_MB}MB"}),
-            400, cors_headers
+        return json_response(
+            {"error": f"File too large. Max {MAX_FILE_SIZE_MB}MB"}, 400
         )
     
     # Генеруємо унікальний import_id
@@ -128,24 +129,19 @@ def generate_import_url(request: flask.Request) -> flask.Response:
             import_id=import_id,
             blob_name=blob_name)
         
-        return flask.make_response(
-            json.dumps({
-                "upload_url": signed_url,
-                "import_id": import_id,
-                "expires_in_seconds": 900,
-                "instructions": {
-                    "method": "PUT",
-                    "content_type": "text/csv",
-                    "note": "Content-Type header must exactly match 'text/csv'"
-                }
-            }),
-            200, cors_headers
-        )
+        return json_response({
+            "upload_url": signed_url,
+            "import_id": import_id,
+            "expires_in_seconds": 900,
+            "instructions": {
+                "method": "PUT",
+                "content_type": "text/csv",
+                "note": "Content-Type header must exactly match 'text/csv'"
+            }
+        }, 200)
         
     except Exception as e:
         log("ERROR", "Failed to generate signed URL",
             error=str(e),
             error_type=type(e).__name__)
-        return flask.make_response(
-            json.dumps({"error": "Internal server error"}), 500, cors_headers
-        )
+        return json_response({"error": "Internal server error"}, 500)
