@@ -15,7 +15,15 @@ CORS_HEADERS = {
     'Access-Control-Max-Age': '3600',
 }
 
-def _json_response(payload, status=200):
+def make_cors_response(body='', status=200, headers=None):
+    response_headers = {
+        **CORS_HEADERS,
+    }
+    if headers:
+        response_headers.update(headers)
+    return body, status, response_headers
+
+def json_response(payload, status=200):
     """Формує (body, status, headers) кортеж для Cloud Functions."""
     return (json.dumps(payload, ensure_ascii=False), status,
             {**CORS_HEADERS, 'Content-Type': 'application/json'})
@@ -26,14 +34,14 @@ def verify_token_via_cloud_function(request):
     """Перевірка токена через окрему Cloud Function."""
     auth = request.headers.get("Authorization")
     if not auth:
-        return None, _json_response({"detail": "Відсутній токен"}, 401)
+        return None, json_response({"detail": "Відсутній токен"}, 401)
 
     response = requests.post(
         "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/protected-api",
         headers={"Authorization": auth}
     )
     if response.status_code != 200:
-        return None, _json_response({"detail": "Некоректний токен"}, 401)
+        return None, json_response({"detail": "Некоректний токен"}, 401)
 
     return response.json(), None
 
@@ -42,7 +50,7 @@ def main(request):
 
     # Preflight CORS запит
     if request.method == 'OPTIONS':
-        return ('', 204, CORS_HEADERS)
+        return make_cors_response('', 204)
 
     user, error_resp = verify_token_via_cloud_function(request)
     if not user:
@@ -71,7 +79,7 @@ def main(request):
                 errors.append("Квартира не знайдена")
 
         if errors:
-            return _json_response({"detail": " ".join(errors)}, 400)
+            return json_response({"detail": " ".join(errors)}, 400)
 
         # Транзакція для перевірки конфлікту та створення бронювання
         @firestore.transactional
@@ -108,7 +116,7 @@ def main(request):
                 'status': 'success',
                 'timestamp': datetime.now(timezone.utc).isoformat()
             })
-            return _json_response({'message': 'Бронювання створено'}, 201)
+            return json_response({'message': 'Бронювання створено'}, 201)
 
         except Exception as e:
             db.collection('booking_logs').add({
@@ -120,13 +128,13 @@ def main(request):
                 'error': str(e),
                 'timestamp': datetime.now(timezone.utc).isoformat()
             })
-            return _json_response({'error': str(e)}, 409)
+            return json_response({'error': str(e)}, 409)
 
     elif request.method == 'GET':
         bookings_ref = db.collection('bookings')
         bookings_query = bookings_ref.where('user_id', '==', user_id)
         bookings = bookings_query.stream()
         result = [doc.to_dict() for doc in bookings]
-        return _json_response(result, 200)
+        return json_response(result, 200)
 
-    return _json_response({"detail": "Метод не підтримується"}, 405)
+    return json_response({"detail": "Метод не підтримується"}, 405)
