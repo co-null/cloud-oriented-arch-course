@@ -23,15 +23,18 @@ def _json_response(payload, status=200):
 
 # Перевірка токена через Cloud Function
 def verify_token_via_cloud_function(request):
+    """Перевірка токена через окрему Cloud Function."""
     auth = request.headers.get("Authorization")
     if not auth:
-        return None, make_cors_response(jsonify({"detail": "Відсутній токен"}), 401)
+        return None, _json_response({"detail": "Відсутній токен"}, 401)
+
     response = requests.post(
         "https://europe-west1-cloud-oriented-arch-course.cloudfunctions.net/protected-api",
         headers={"Authorization": auth}
     )
     if response.status_code != 200:
-        return None, make_cors_response(jsonify({"detail": "Некоректний токен"}), 401)
+        return None, _json_response({"detail": "Некоректний токен"}, 401)
+
     return response.json(), None
 
 def main(request):
